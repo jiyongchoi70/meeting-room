@@ -1,0 +1,636 @@
+/* FullCalendar v6: CSS is auto-injected by the library */
+
+.auth-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  color: #5f6368;
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 16px 24px;
+  background: #fff;
+  outline: none;
+  border: none;
+}
+
+.app-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  color: #5f6368;
+  background: transparent;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.app-nav-item:hover {
+  background: #f1f3f4;
+  color: #202124;
+}
+
+.app-header-nav a.app-nav-item {
+  text-decoration: none;
+  color: inherit;
+}
+
+.app-nav-icon {
+  font-size: 1rem;
+}
+
+.app-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  padding: 20px 16px;
+  border-right: 1px solid #e0e0e0;
+  border-top: 1px solid #dadce0;
+  background: #fafafa;
+}
+
+.sidebar-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #202124;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #dadce0;
+}
+
+.btn-create {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 16px;
+  margin-bottom: 20px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #1a73e8;
+  background: #fff;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+
+.btn-create:hover {
+  background: #f0f7ff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.btn-create-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+/* Mini calendar */
+.mini-calendar {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+}
+
+.mini-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #202124;
+}
+
+.mini-calendar-header button {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1.25rem;
+  color: #5f6368;
+}
+
+.mini-calendar-header button:hover {
+  background: #f1f3f4;
+  color: #202124;
+}
+
+.mini-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 6px;
+  font-size: 0.6875rem;
+  color: #5f6368;
+  text-align: center;
+}
+
+.mini-calendar-weekday:first-child {
+  color: #d93025;
+}
+
+.mini-calendar-weekday:last-child {
+  color: #1a73e8;
+}
+
+.mini-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.mini-calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  color: #202124;
+}
+
+.mini-calendar-day.empty {
+  cursor: default;
+  visibility: hidden;
+}
+
+.mini-calendar-day:hover:not(.empty) {
+  background: #f1f3f4;
+}
+
+.mini-calendar-day.today {
+  background: #1a73e8;
+  color: #fff;
+}
+
+.mini-calendar-day.selected:not(.today) {
+  background: rgba(26, 115, 232, 0.2);
+  color: #202124;
+}
+
+/* Main content */
+.main-content {
+  flex: 1;
+  padding: 0 24px 20px 24px;
+  overflow: auto;
+}
+
+.main-calendar-wrap {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid #e0e0e0;
+}
+
+/* FullCalendar overrides */
+.main-calendar-wrap .fc {
+  --fc-border-color: #e0e0e0;
+  --fc-button-bg-color: #fff;
+  --fc-button-border-color: #dadce0;
+  --fc-button-hover-bg-color: #f1f3f4;
+  --fc-button-active-bg-color: #e8eaed;
+  --fc-button-active-border-color: #dadce0;
+  --fc-today-bg-color: transparent;
+  --fc-event-bg-color: #1a73e8;
+  --fc-event-border-color: #1a73e8;
+}
+
+/* 오늘 셀: 구글 캘린더처럼 날짜 숫자만 파란 원 + 흰 글씨 (셀 전체 색칠 없음) */
+.main-calendar-wrap .fc .fc-daygrid-day.fc-day-today {
+  background-color: transparent !important;
+}
+.main-calendar-wrap .fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 1.75em !important;
+  height: 1.75em !important;
+  border-radius: 50% !important;
+  background: #1a73e8 !important;
+  color: #fff !important;
+  text-decoration: none !important;
+}
+
+/* 주/일 뷰: 오늘 열 = 파란 배경 + 흰 글씨 (왼쪽 미니캘린더와 동일) */
+.main-calendar-wrap .fc .fc-timegrid .fc-col-header-cell.fc-day-today,
+.main-calendar-wrap .fc .fc-timegrid .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
+  background: #1a73e8 !important;
+  color: #fff !important;
+}
+.main-calendar-wrap .fc .fc-timegrid .fc-col-header-cell.fc-day-today * {
+  color: #fff !important;
+}
+
+/* 주/일 뷰: 오늘 열 헤더 아래 파란 원(점) 제거 */
+.main-calendar-wrap .fc .fc-timegrid .fc-col-header-cell.fc-day-today::before,
+.main-calendar-wrap .fc .fc-timegrid .fc-col-header-cell.fc-day-today::after,
+.main-calendar-wrap .fc .fc-timegrid .fc-col-header-cell.fc-day-today *::before,
+.main-calendar-wrap .fc .fc-timegrid .fc-col-header-cell.fc-day-today *::after {
+  display: none !important;
+}
+.main-calendar-wrap .fc .fc-timegrid .fc-timegrid-col.fc-day-today .fc-timegrid-col-misc {
+  display: none !important;
+}
+
+/* 주/일 뷰 all-day 행: 오늘 셀의 파란 원 제거 (월 뷰만 파란 원 사용) */
+.main-calendar-wrap .fc .fc-timegrid .fc-daygrid-day.fc-day-today .fc-daygrid-day-top {
+  display: none !important;
+}
+
+/* 주/일 뷰: 시간 컬럼(축)의 점선만 제거, 예약 컬럼 점선은 유지 */
+/* 시간축: axis-chunk 내부 (레이아웃에 따라 사용) */
+.main-calendar-wrap .fc .fc-timegrid .fc-timegrid-axis-chunk table td,
+.main-calendar-wrap .fc .fc-timegrid .fc-timegrid-axis-chunk .fc-timegrid-slot,
+.main-calendar-wrap .fc .fc-timegrid .fc-timegrid-axis-chunk .fc-timegrid-slot-minor,
+.main-calendar-wrap .fc .fc-timegrid .fc-timegrid-axis-chunk .fc-timegrid-slot-label {
+  border-top: none !important;
+  border-bottom: none !important;
+}
+/* 시간축: fc-timegrid-slots 테이블에서 첫 번째 td만 (시간 컬럼), 예약 컬럼(td:not(:first-child))은 제외 */
+.main-calendar-wrap .fc .fc-timegrid-slots table tbody tr td:first-child,
+.main-calendar-wrap .fc .fc-timegrid-slots table tbody tr td:first-child.fc-timegrid-slot,
+.main-calendar-wrap .fc .fc-timegrid-slots table tbody tr td:first-child.fc-timegrid-slot-minor,
+.main-calendar-wrap .fc .fc-timegrid-slots table tbody tr td:first-child.fc-timegrid-slot-label {
+  border-top: none !important;
+  border-bottom: none !important;
+  border-top-style: none !important;
+}
+
+/* 주/일 뷰: 시간 컬럼 글자 크기 */
+.main-calendar-wrap .fc .fc-timegrid-axis-chunk .fc-timegrid-slot-label,
+.main-calendar-wrap .fc .fc-timegrid-axis-chunk .fc-timegrid-slot-label-cushion,
+.main-calendar-wrap .fc .fc-timegrid-slots table tbody tr td:first-child .fc-timegrid-slot-label-cushion {
+  font-size: 0.8rem !important;
+}
+
+.main-calendar-wrap .fc-toolbar-title {
+  font-size: 1.25rem;
+  color: #202124;
+}
+
+/* 메인 캘린더 요일: 일=빨간색, 토=파란색 */
+/* 월 뷰: 첫 번째 열=일요일 */
+.main-calendar-wrap .fc-col-header-cell:first-child,
+.main-calendar-wrap .fc-col-header-cell:first-child * {
+  color: #d93025 !important;
+}
+
+/* 주/일 뷰(timeGrid): 첫 열은 시간축, 두 번째 열=일요일 */
+.main-calendar-wrap .fc-timegrid .fc-col-header-cell:nth-child(2),
+.main-calendar-wrap .fc-timegrid .fc-col-header-cell:nth-child(2) * {
+  color: #d93025 !important;
+}
+
+/* 주/일 뷰 scrollgrid: 2번째 열=일요일 */
+.main-calendar-wrap .fc-scrollgrid-section .fc-col-header-cell:nth-child(2),
+.main-calendar-wrap .fc-scrollgrid-section .fc-col-header-cell:nth-child(2) * {
+  color: #d93025 !important;
+}
+
+/* 토요일=파란색 */
+.main-calendar-wrap .fc-col-header-cell:last-child,
+.main-calendar-wrap .fc-col-header-cell:last-child * {
+  color: #1a73e8 !important;
+}
+
+.main-calendar-wrap .fc-timegrid .fc-col-header-cell:last-child,
+.main-calendar-wrap .fc-timegrid .fc-col-header-cell:last-child *,
+.main-calendar-wrap .fc-scrollgrid-section .fc-col-header-cell:last-child,
+.main-calendar-wrap .fc-scrollgrid-section .fc-col-header-cell:last-child * {
+  color: #1a73e8 !important;
+}
+
+/* 일 뷰 포함: 실제 요일 기준 색상 (dayHeaderClassNames로 셀에 적용) */
+.main-calendar-wrap .fc .fc-col-header-cell.fc-day-sunday,
+.main-calendar-wrap .fc .fc-col-header-cell.fc-day-sunday *,
+.main-calendar-wrap .fc .fc-col-header-cell-cushion.fc-day-sunday,
+.main-calendar-wrap .fc .fc-col-header-cell-cushion.fc-day-sunday * {
+  color: #d93025 !important;
+}
+.main-calendar-wrap .fc .fc-col-header-cell.fc-day-saturday,
+.main-calendar-wrap .fc .fc-col-header-cell.fc-day-saturday *,
+.main-calendar-wrap .fc .fc-col-header-cell-cushion.fc-day-saturday,
+.main-calendar-wrap .fc .fc-col-header-cell-cushion.fc-day-saturday * {
+  color: #1a73e8 !important;
+}
+
+/* 캘린더 툴바 버튼(오늘, <, >, 월/주/일) 글자 보이도록, 선택/포커스 시에도 테두리 굵지 않게 */
+.main-calendar-wrap .fc .fc-button {
+  color: #202124 !important;
+  background-color: #fff !important;
+  border: 1px solid #dadce0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.main-calendar-wrap .fc .fc-button:hover {
+  color: #202124 !important;
+  background-color: #f1f3f4 !important;
+  border: 1px solid #dadce0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.main-calendar-wrap .fc .fc-button:focus,
+.main-calendar-wrap .fc .fc-button:focus-visible {
+  border: 1px solid #dadce0 !important;
+  border-width: 1px !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.main-calendar-wrap .fc .fc-button:not(:disabled).fc-button-active,
+.main-calendar-wrap .fc .fc-button:not(:disabled):active {
+  color: #202124 !important;
+  background-color: #e8eaed !important;
+  border: 1px solid #dadce0 !important;
+  border-width: 1px !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.main-calendar-wrap .fc-event {
+  padding: 2px 6px;
+  font-size: 0.75rem;
+}
+
+.main-calendar-wrap .fc-event-time {
+  margin-right: 4px;
+  font-weight: 400;
+}
+
+.main-calendar-wrap .fc-event-title {
+  font-weight: 400;
+}
+
+/* 1일 예약: 글씨가 다음 날로 넘어가지 않도록 말줄임 (예: 오전 10:30 GPRO 타운..) */
+.main-calendar-wrap .fc-daygrid-event:has(.fc-event-single-day) {
+  overflow: hidden;
+  min-width: 0;
+}
+
+.main-calendar-wrap .fc-event-single-day {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.main-calendar-wrap .fc-event-single-day .fc-event-main-frame {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.main-calendar-wrap .fc-event-single-day .fc-event-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline;
+}
+
+/* 주/일 뷰: 스크롤 필요할 때만 스크롤바 표시 (인라인 overflow: scroll 덮어씀) → 화살표도 필요 시에만 */
+.main-calendar-wrap .fc-scroller {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+/* WebKit: 스크롤바 버튼(위·아래 화살표) 완전 제거 - 트랙과 썸만 사용 */
+.main-calendar-wrap .fc-scroller::-webkit-scrollbar {
+  width: 10px;
+}
+.main-calendar-wrap .fc-scroller::-webkit-scrollbar-track {
+  margin: 0;
+  background: #f1f3f4;
+  border-radius: 4px;
+}
+.main-calendar-wrap .fc-scroller::-webkit-scrollbar-thumb {
+  background: #dadce0;
+  border-radius: 4px;
+}
+/* 화살표 버튼 제거 (모든 WebKit 버튼 선택자) */
+.main-calendar-wrap .fc-scroller::-webkit-scrollbar-button,
+.main-calendar-wrap .fc-scroller::-webkit-scrollbar-button:vertical,
+.main-calendar-wrap .fc-scroller::-webkit-scrollbar-button:vertical:decrement,
+.main-calendar-wrap .fc-scroller::-webkit-scrollbar-button:vertical:increment,
+.main-calendar-wrap .fc-scroller::-webkit-scrollbar-button:single-button {
+  display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  width: 0 !important;
+  max-height: 0 !important;
+  max-width: 0 !important;
+}
+
+/* 캘린더 내 모든 스크롤 영역 동일 적용 */
+.main-calendar-wrap *::-webkit-scrollbar-button,
+.main-content *::-webkit-scrollbar-button {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+}
+.main-calendar-wrap *::-webkit-scrollbar {
+  width: 10px;
+}
+.main-calendar-wrap *::-webkit-scrollbar-button {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+}
+
+/* 1일 이상 예약: 예약 범위 안에서 글씨가 보이도록 */
+.main-calendar-wrap .fc-event-multi-day {
+  overflow: visible;
+}
+
+.main-calendar-wrap .fc-event-multi-day .fc-event-main-frame {
+  overflow: visible;
+  white-space: normal;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.reservation-modal {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  width: 90%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 0;
+}
+
+.modal-header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.modal-close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #5f6368;
+}
+
+.modal-close:hover {
+  background: #f1f3f4;
+  color: #202124;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 500 !important;
+  color: #5f6368;
+  margin-bottom: 6px;
+}
+
+.form-group input[type='text'],
+.form-group input[type='date'],
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 400 !important;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+}
+
+/* 날짜 입력(시작일·종료일)이 제목/시간/회의실과 동일한 글씨로 보이도록 브라우저 기본 스타일 덮어씀 */
+.reservation-modal .form-group input[type='date'] {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif !important;
+  font-size: 0.9375rem !important;
+  font-weight: 400 !important;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.checkbox-label input {
+  width: 18px;
+  height: 18px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.modal-actions button {
+  padding: 10px 20px;
+  font-size: 0.9375rem;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid #dadce0;
+  background: #fff;
+  color: #202124;
+}
+
+.modal-actions button.btn-primary {
+  background: #1a73e8;
+  border-color: #1a73e8;
+  color: #fff;
+}
+
+.modal-actions button.btn-primary:hover:not(:disabled) {
+  background: #1557b0;
+}
+
+.modal-actions button.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
