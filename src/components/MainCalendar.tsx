@@ -16,6 +16,8 @@ interface MainCalendarProps {
   onEventClick: (event: ReservationEvent) => void
   onNavigate: (date: Date) => void
   onTodayClick?: () => void
+  /** false면 날짜/이벤트 드래그·리사이즈 비활성화 (예: join !== 110 인 사용자) */
+  editable?: boolean
   /** 드래그로 이벤트 시간 이동 시 호출 (eventId, 새 시작, 새 종료) */
   onEventDrop?: (eventId: string, start: Date, end: Date) => void
   /** 리사이즈로 이벤트 기간 변경 시 호출 */
@@ -42,6 +44,7 @@ export default function MainCalendar({
   onEventClick,
   onNavigate,
   onTodayClick,
+  editable = true,
   onEventDrop,
   onEventResize,
 }: MainCalendarProps) {
@@ -139,9 +142,12 @@ export default function MainCalendar({
         }
         dayHeaderClassNames={({ date }) => {
           const day = new Date(date).getDay()
-          return day === 0 ? ['fc-day-sunday'] : day === 6 ? ['fc-day-saturday'] : []
+          if (day === 0) return ['fc-day-sunday']
+          if (day === 6) return ['fc-day-saturday']
+          if (day === 1) return ['fc-day-monday']
+          return []
         }}
-        editable={true}
+        editable={editable}
         dateClick={handleDateClick}
         eventClick={handleEventClick}
         eventDrop={handleEventDrop}

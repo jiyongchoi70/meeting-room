@@ -172,7 +172,7 @@ export default function ReservationModal({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal reservation-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="reservation-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>{initialEvent ? '예약 수정' : '회의실 예약'}</h2>
           <button type="button" className="modal-close" onClick={onClose} aria-label="닫기">
