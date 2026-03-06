@@ -168,3 +168,39 @@ export async function deleteLookupValue(lookupValueId: number): Promise<void> {
     .eq('lookup_value_id', lookupValueId)
   if (error) throw error
 }
+
+/** lookup_type_cd로 대분류 ID 조회 */
+async function getLookupTypeIdByCd(lookupTypeCd: number): Promise<number | null> {
+  const { data, error } = await supabase
+    .from('mr_lookup_type')
+    .select('lookup_type_id')
+    .eq('lookup_type_cd', lookupTypeCd)
+    .maybeSingle()
+  if (error) throw error
+  return data?.lookup_type_id ?? null
+}
+
+/** lookup_type_cd로 중분류 목록 조회 (드롭다운용). option: validAt 있으면 해당 일자 기준 유효한 것만 */
+export async function fetchLookupValuesByTypeCd(
+  lookupTypeCd: number,
+  option?: { validAt?: string }
+): Promise<LookupValue[]> {
+  const typeId = await getLookupTypeIdByCd(lookupTypeCd)
+  if (typeId == null) return []
+  const { data, error } = await supabase
+    .from('mr_lookup_value')
+    .select('*')
+    .eq('lookup_type_id', typeId)
+    .order('seq', { ascending: true, nullsFirst: false })
+  if (error) throw error
+  let list = (data ?? []) as LookupValue[]
+  if (option?.validAt) {
+    const ymd = option.validAt.replace(/-/g, '')
+    list = list.filter(
+      (v) =>
+        (!v.start_ymd || String(v.start_ymd).replace(/-/g, '') <= ymd) &&
+        (!v.end_ymd || String(v.end_ymd).replace(/-/g, '') >= ymd)
+    )
+  }
+  return list
+}

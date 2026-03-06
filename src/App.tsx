@@ -12,11 +12,15 @@ import UpdatePasswordPage from './pages/UpdatePasswordPage'
 function App() {
   return (
     <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/update-password" element={<UpdatePasswordPage />} />
       <Route
-        path="/"
+        path="/admin/:section"
         element={
           <ProtectedRoute>
-            <CalendarPage />
+            <AdminSubPage />
           </ProtectedRoute>
         }
       />
@@ -28,18 +32,7 @@ function App() {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/admin/:section"
-        element={
-          <ProtectedRoute>
-            <AdminSubPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/signup" element={<SignupPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route path="/update-password" element={<UpdatePasswordPage />} />
+      <Route path="/" element={<CalendarPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

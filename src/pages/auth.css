@@ -96,6 +96,10 @@
   font-size: 1rem;
 }
 
+.auth-field-icon-briefcase {
+  font-size: 1rem;
+}
+
 .auth-input {
   flex: 1;
   padding: 12px 12px 12px 0;
@@ -106,6 +110,16 @@
 }
 
 .auth-input::placeholder {
+  color: #80868b;
+}
+
+.auth-select {
+  cursor: pointer;
+  appearance: auto;
+  color: inherit;
+}
+
+.auth-select option[value=""] {
   color: #80868b;
 }
 

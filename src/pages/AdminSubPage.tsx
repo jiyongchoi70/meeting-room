@@ -1,6 +1,7 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import CommonCodeSection from '../components/CommonCodeSection'
+import UsersSection from '../components/UsersSection'
 import '../App.css'
 
 const SECTION_TITLES: Record<string, string> = {
@@ -12,8 +13,14 @@ const SECTION_TITLES: Record<string, string> = {
 
 export default function AdminSubPage() {
   const { section } = useParams<{ section: string }>()
-  const { signOut } = useAuth()
+  const navigate = useNavigate()
+  useAuth()
   const title = section ? SECTION_TITLES[section] ?? '관리' : '관리'
+
+  /** 새로고침 없이 회의실 예약(/)으로 이동 + fromLogout 플래그 → CalendarPage에서 signOut 후 로그인 버튼 표시 */
+  const handleLogout = () => {
+    navigate('/', { state: { fromLogout: true }, replace: true })
+  }
 
   return (
     <div className="admin-page">
@@ -28,7 +35,7 @@ export default function AdminSubPage() {
             type="button"
             className="app-nav-item"
             title="로그아웃"
-            onClick={() => signOut()}
+            onClick={handleLogout}
           >
             <span className="app-nav-icon" aria-hidden="true">👤</span>
             <span>로그아웃</span>
@@ -38,13 +45,15 @@ export default function AdminSubPage() {
 
       <main className="admin-body">
         <div className="admin-sub-content">
-          {section !== 'codes' && (
+          {section !== 'codes' && section !== 'users' && (
             <Link to="/admin" className="app-nav-item admin-back-link">
               ← 관리자 메뉴로
             </Link>
           )}
           {section === 'codes' ? (
             <CommonCodeSection />
+          ) : section === 'users' ? (
+            <UsersSection />
           ) : (
             <>
               <h2 className="admin-sub-title">{title}</h2>

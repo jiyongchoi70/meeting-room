@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { authErrorMessage } from '../lib/authErrors'
 import './auth.css'
 
 export default function ResetPasswordPage() {
@@ -24,7 +25,7 @@ export default function ResetPasswordPage() {
         redirectTo: `${window.location.origin}/update-password`,
       })
       if (err) {
-        setError(err.message ?? '재설정 이메일 발송에 실패했습니다.')
+        setError(authErrorMessage(err.message, '재설정 이메일 발송에 실패했습니다.'))
         return
       }
       setSent(true)

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import '../App.css'
 
@@ -12,7 +12,13 @@ const ADMIN_MENUS = [
 ]
 
 export default function AdminPage() {
-  const { signOut } = useAuth()
+  const navigate = useNavigate()
+  useAuth()
+
+  /** 새로고침 없이 회의실 예약(/)으로 이동 + fromLogout 플래그 → CalendarPage에서 signOut 후 로그인 버튼 표시 */
+  const handleLogout = () => {
+    navigate('/', { state: { fromLogout: true }, replace: true })
+  }
 
   return (
     <div className="admin-page">
@@ -27,7 +33,7 @@ export default function AdminPage() {
             type="button"
             className="app-nav-item"
             title="로그아웃"
-            onClick={() => signOut()}
+            onClick={handleLogout}
           >
             <span className="app-nav-icon" aria-hidden="true">👤</span>
             <span>로그아웃</span>

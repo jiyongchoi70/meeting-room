@@ -16,9 +16,13 @@
   background: #fff;
 }
 
+/* 헤더: fixed로 뷰포트 최상단 고정 → FullCalendar/월·주·일 위에 항상 그려져 첫 클릭부터 동작 */
 .app-header {
-  position: relative;
-  z-index: 1000;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 99999;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -31,18 +35,29 @@
   isolation: isolate;
 }
 
+/* fixed 헤더 높이만큼 본문이 가려지지 않도록 여백 */
+.app-header-spacer {
+  flex-shrink: 0;
+  height: 60px;
+}
+
 .app-header-nav {
   display: flex;
   align-items: center;
   gap: 8px;
   position: relative;
-  z-index: 1001;
+  z-index: 10001;
   pointer-events: auto;
 }
 
-.app-nav-item--admin {
+.app-header-nav .app-nav-item {
+  pointer-events: auto;
+}
+
+.app-nav-item--admin,
+.app-nav-item--auth {
   position: relative;
-  z-index: 1002;
+  z-index: 10002;
   pointer-events: auto;
 }
 
@@ -65,15 +80,19 @@
   color: #202124;
 }
 
-.app-header-nav a.app-nav-item {
+.app-header-nav a.app-nav-item,
+.app-header-nav button.app-nav-item {
   text-decoration: none;
   color: inherit;
+  font: inherit;
+  font-family: inherit;
 }
 
 .app-nav-icon {
   font-size: 1rem;
 }
 
+/* 헤더 아래에만 그리기 (헤더 클릭이 가려지지 않도록) */
 .app-body {
   display: flex;
   flex: 1;
@@ -81,6 +100,7 @@
   position: relative;
   z-index: 1;
   overflow: hidden;
+  isolation: isolate;
 }
 
 /* Sidebar */
@@ -120,9 +140,16 @@
   transition: background 0.2s, box-shadow 0.2s;
 }
 
-.btn-create:hover {
+.btn-create:hover:not(:disabled) {
   background: #f0f7ff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.btn-create:disabled {
+  color: #9aa0a6;
+  background: #f1f3f4;
+  cursor: not-allowed;
+  opacity: 0.85;
 }
 
 .btn-create-icon {
@@ -230,9 +257,11 @@
   overflow: auto;
 }
 
+/* 캘린더는 헤더 아래 레이어에만 그리기 (헤더가 fixed로 항상 위에 있음) */
 .main-calendar-wrap {
   position: relative;
-  z-index: 1;
+  z-index: 0;
+  isolation: isolate;
   background: #fff;
   border-radius: 8px;
   padding: 16px;
@@ -371,6 +400,14 @@
   color: #1a73e8 !important;
 }
 
+/* 월요일=검은색 */
+.main-calendar-wrap .fc .fc-col-header-cell.fc-day-monday,
+.main-calendar-wrap .fc .fc-col-header-cell.fc-day-monday *,
+.main-calendar-wrap .fc .fc-col-header-cell-cushion.fc-day-monday,
+.main-calendar-wrap .fc .fc-col-header-cell-cushion.fc-day-monday * {
+  color: #000 !important;
+}
+
 /* 캘린더 툴바 버튼(오늘, <, >, 월/주/일) 글자 보이도록, 선택/포커스 시에도 테두리 굵지 않게 */
 .main-calendar-wrap .fc .fc-button {
   color: #202124 !important;
@@ -507,7 +544,7 @@
   white-space: normal;
 }
 
-/* Modal */
+/* Modal - 헤더(fixed 99999) 위에 표시 */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -515,7 +552,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 100000;
 }
 
 .reservation-modal {
@@ -690,14 +727,15 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 48px 24px;
+  padding: 12px 24px;
   background: #fff;
 }
 
 .admin-body .admin-sub-content:has(.common-code-section) {
   background: #f3f4f6;
-  border-radius: 8px;
-  padding: 24px 28px 40px;
+  border-radius: 16px;
+  padding: 28px 32px 48px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
 .admin-menu-table-wrap {
@@ -779,7 +817,7 @@
 
 .admin-sub-content {
   text-align: left;
-  padding: 24px 32px 48px;
+  padding: 6px 32px 48px;
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;

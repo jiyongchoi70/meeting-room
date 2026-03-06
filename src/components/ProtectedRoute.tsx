@@ -17,6 +17,11 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
       setSession(s)
       setLoading(false)
     })
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
+    return () => subscription.unsubscribe()
   }, [])
 
   useEffect(() => {

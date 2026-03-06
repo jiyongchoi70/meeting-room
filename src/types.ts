@@ -37,3 +37,18 @@ export interface LookupValue {
   end_ymd: string | null
   create_ymd: string | null
 }
+
+/** 사용자 (mr_users) */
+export interface MrUser {
+  user_uid: string
+  user_name: string | null
+  user_position: number | null
+  email: string | null
+  phone: string | null
+  user_type: number | null
+  join: number | null
+  remark: string | null
+  create_ymd: string | null
+  update_ymd: string | null
+  update_user: string | null
+}

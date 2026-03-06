@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { authErrorMessage } from '../lib/authErrors'
 import './auth.css'
 
 export default function UpdatePasswordPage() {
@@ -32,7 +33,7 @@ export default function UpdatePasswordPage() {
     try {
       const { error: err } = await supabase.auth.updateUser({ password })
       if (err) {
-        setError(err.message ?? '비밀번호 변경에 실패했습니다.')
+        setError(authErrorMessage(err.message, '비밀번호 변경에 실패했습니다.'))
         return
       }
       setSuccess(true)

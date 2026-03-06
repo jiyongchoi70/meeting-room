@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { authErrorMessage } from '../lib/authErrors'
 import './auth.css'
 
 export default function LoginPage() {
@@ -24,7 +25,7 @@ export default function LoginPage() {
     try {
       const { error: err } = await supabase.auth.signInWithPassword({ email, password })
       if (err) {
-        setError(err.message ?? '로그인에 실패했습니다.')
+        setError(authErrorMessage(err.message, '로그인에 실패했습니다.'))
         return
       }
       navigate('/', { replace: true })

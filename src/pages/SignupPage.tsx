@@ -1,11 +1,19 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { authErrorMessage } from '../lib/authErrors'
+import { fetchLookupValuesByTypeCd } from '../api/lookup'
+import { insertMrUser, formatPhoneInput } from '../api/users'
+import type { LookupValue } from '../types'
 import './auth.css'
+
+const POSITION_LOOKUP_CD = 130
 
 export default function SignupPage() {
   const navigate = useNavigate()
   const [name, setName] = useState('')
+  const [positionCd, setPositionCd] = useState<number | ''>('')
+  const [positionOptions, setPositionOptions] = useState<LookupValue[]>([])
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -14,6 +22,13 @@ export default function SignupPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10)
+    fetchLookupValuesByTypeCd(POSITION_LOOKUP_CD, { validAt: today })
+      .then(setPositionOptions)
+      .catch(() => setPositionOptions([]))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,18 +47,38 @@ export default function SignupPage() {
       setError('비밀번호는 6자 이상이어야 합니다.')
       return
     }
+    if (positionCd === '' || positionCd == null) {
+      setError('직분을 선택해 주세요.')
+      return
+    }
     setLoading(true)
     try {
-      const { error: err } = await supabase.auth.signUp({
+      const { data: authData, error: err } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: { full_name: name, phone },
+          data: { full_name: name, phone, user_position: positionCd },
         },
       })
       if (err) {
-        setError(err.message ?? '회원가입에 실패했습니다.')
+        setError(authErrorMessage(err.message, '회원가입에 실패했습니다.'))
         return
+      }
+      const userUid = authData?.user?.id
+      if (userUid) {
+        try {
+          await insertMrUser({
+            user_uid: userUid,
+            user_name: name.trim() || null,
+            phone: phone.trim() || null,
+            email: email.trim() || null,
+            user_position: positionCd,
+          })
+        } catch (insertErr: unknown) {
+          const msg = insertErr instanceof Error ? insertErr.message : ''
+          setError(authErrorMessage(msg, 'mr_users 저장에 실패했습니다.'))
+          return
+        }
       }
       setSuccess(true)
       setTimeout(() => navigate('/login', { replace: true }), 2000)
@@ -96,13 +131,33 @@ export default function SignupPage() {
             />
           </div>
           <div className="auth-field">
+            <span className="auth-field-icon auth-field-icon-briefcase" aria-hidden="true">💼</span>
+            <select
+              value={positionCd === '' ? '' : positionCd}
+              onChange={(e) => setPositionCd(e.target.value === '' ? '' : Number(e.target.value))}
+              className="auth-input auth-select"
+              required
+              aria-label="직분 선택"
+            >
+              <option value="">선택</option>
+              {positionOptions.map((opt) => (
+                <option key={opt.lookup_value_id} value={opt.lookup_value_cd}>
+                  {opt.lookup_value_nm}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="auth-field">
             <span className="auth-field-icon auth-field-icon-phone" aria-hidden="true">📱</span>
             <input
               type="tel"
+              inputMode="numeric"
               placeholder="전화번호 (예: 010-1234-5678)"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(formatPhoneInput(e.target.value))}
               className="auth-input"
+              maxLength={13}
+              autoComplete="tel"
             />
           </div>
           <div className="auth-field">

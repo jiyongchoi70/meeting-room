@@ -86,38 +86,41 @@
 }
 
 #masterGrid,
-#detailGrid {
+#detailGrid,
+#usersGrid {
     width: 100%;
     height: 500px;
     min-height: 300px;
     border-radius: 6px;
-    /* 역할: 그리드의 테두리를 둥글게 만들었을 때 내부 스크롤바, 셀 등이 모서리 밖으로 삐져나오는 것을 방지 */
-  /*  overflow: hidden; */
     border: 1px solid #e5e7eb;
     box-sizing: border-box;
 }
 
 #masterGrid > div,
-#detailGrid > div {
+#detailGrid > div,
+#usersGrid > div {
     height: 100% !important;
     min-height: 0;
 }
 
 /* 그리드 헤더(타이틀) 배경색 */
 #masterGrid .ag-header,
-#detailGrid .ag-header {
+#detailGrid .ag-header,
+#usersGrid .ag-header {
     background-color: #f8f9fa;
 }
 
 #masterGrid .ag-header-cell,
-#detailGrid .ag-header-cell {
+#detailGrid .ag-header-cell,
+#usersGrid .ag-header-cell {
     background-color: #f8f9fa;
     font-size: 14px;
 }
 
 /* 행 내용 세로 중앙 정렬 */
 #masterGrid .ag-cell,
-#detailGrid .ag-cell {
+#detailGrid .ag-cell,
+#usersGrid .ag-cell {
     display: flex;
     align-items: center;
     font-size: 14px;
@@ -125,12 +128,14 @@
 
 /* 짝수 행 배경 #fcfcfc */
 #masterGrid .ag-row:nth-child(even),
-#detailGrid .ag-row:nth-child(even) {
+#detailGrid .ag-row:nth-child(even),
+#usersGrid .ag-row:nth-child(even) {
     background-color: #fcfcfc;
 }
 
 #masterGrid .ag-row:nth-child(even) .ag-cell,
-#detailGrid .ag-row:nth-child(even) .ag-cell {
+#detailGrid .ag-row:nth-child(even) .ag-cell,
+#usersGrid .ag-row:nth-child(even) .ag-cell {
     background-color: #fcfcfc;
 }
 
@@ -160,9 +165,33 @@
     background-color: #deeeff;
 }
 
-/* 중분류 hover: 대분류와 동일한 배경색 */
-#detailGrid .ag-row:hover {
+/* 중분류/사용자 hover: 대분류와 동일한 배경색 */
+#detailGrid .ag-row:hover,
+#usersGrid .ag-row:hover {
     background-color: #deeeff;
+}
+
+/* 사용자 그리드 페이지네이션 (이미지와 동일: Page Size, 1 to N of N, 첫/이전/다음/마지막) */
+#usersGrid .ag-paging-panel {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: #333;
+    border-top: 1px solid #e5e7eb;
+    background: #fafafa;
+}
+
+#usersGrid .ag-paging-page-summary-panel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#usersGrid .ag-paging-row-summary-panel {
+    margin-right: 8px;
 }
 
 .modal {
@@ -335,13 +364,156 @@
     color: #dc2626;
 }
 
+/* ---------- 사용자 관리 (UsersSection) ---------- */
+.users-section {
+    flex-direction: column;
+    max-width: 1200px;
+}
+
+.users-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.users-header .section-header {
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+.users-error {
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    background: #fef2f2;
+    color: #b91c1c;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.users-loading {
+    padding: 24px;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.search-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 16px;
+    background-color: #f9fafb;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+}
+
+.search-form label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: #333;
+}
+
+.search-form input,
+.search-form select {
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    min-width: 120px;
+}
+
+.search-form input.search-form-input-narrow {
+    min-width: 100px;
+    width: 120px;
+}
+
+.search-form .search-button {
+    padding: 6px 14px;
+    margin-right: 30px;
+    background-color: #374151;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.search-form .search-button:hover {
+    background-color: #1f2937;
+}
+
+.user-table-wrap {
+    overflow-x: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #fff;
+}
+
+.user-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.user-table th,
+.user-table td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.user-table th {
+    background-color: #f8f9fa;
+    font-weight: 600;
+    color: #333;
+}
+
+.user-table tbody tr:nth-child(even) {
+    background-color: #fcfcfc;
+}
+
+.user-table tbody tr:hover {
+    background-color: #deeeff;
+}
+
+.user-email-link {
+    color: #2563eb;
+    text-decoration: underline;
+}
+
+.user-email-link:hover {
+    color: #1d4ed8;
+}
+
 @media (max-width: 1024px) {
     .common-code-container {
         flex-direction: column;
     }
     
     #masterGrid,
-    #detailGrid {
+    #detailGrid,
+    #usersGrid {
         height: 300px;
+    }
+
+    .search-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .search-form label {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .search-form input,
+    .search-form select {
+        min-width: 100%;
     }
 }
