@@ -52,7 +52,16 @@ export default function MainCalendar({
 
   useEffect(() => {
     const api = calendarRef.current?.getApi()
-    if (api) api.gotoDate(currentDate)
+    if (!api) return
+    const date = new Date(currentDate.getTime())
+    let cancelled = false
+    const id = setTimeout(() => {
+      if (!cancelled) api.gotoDate(date)
+    }, 0)
+    return () => {
+      cancelled = true
+      clearTimeout(id)
+    }
   }, [currentDate])
 
   useEffect(() => {

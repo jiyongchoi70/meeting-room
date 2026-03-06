@@ -98,10 +98,14 @@ export default function CalendarPage() {
     <div className="app">
       <header className="app-header">
         <nav className="app-header-nav">
-          <button type="button" className="app-nav-item" title="관리자 화면">
+          <a
+            href="/admin"
+            className="app-nav-item app-nav-item--admin"
+            title="관리자 화면"
+          >
             <span className="app-nav-icon" aria-hidden="true">⚙</span>
             <span>관리자</span>
-          </button>
+          </a>
           {user ? (
             <button
               type="button"

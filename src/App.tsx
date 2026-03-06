@@ -2,6 +2,8 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
 import ProtectedRoute from './components/ProtectedRoute'
 import CalendarPage from './pages/CalendarPage'
+import AdminPage from './pages/AdminPage'
+import AdminSubPage from './pages/AdminSubPage'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
@@ -15,6 +17,22 @@ function App() {
         element={
           <ProtectedRoute>
             <CalendarPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <AdminPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/:section"
+        element={
+          <ProtectedRoute>
+            <AdminSubPage />
           </ProtectedRoute>
         }
       />

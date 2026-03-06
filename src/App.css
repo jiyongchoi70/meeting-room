@@ -17,19 +17,33 @@
 }
 
 .app-header {
+  position: relative;
+  z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   padding: 16px 24px;
   background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  flex-shrink: 0;
   outline: none;
-  border: none;
+  pointer-events: auto;
+  isolation: isolate;
 }
 
 .app-header-nav {
   display: flex;
   align-items: center;
   gap: 8px;
+  position: relative;
+  z-index: 1001;
+  pointer-events: auto;
+}
+
+.app-nav-item--admin {
+  position: relative;
+  z-index: 1002;
+  pointer-events: auto;
 }
 
 .app-nav-item {
@@ -64,6 +78,9 @@
   display: flex;
   flex: 1;
   min-height: 0;
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
 }
 
 /* Sidebar */
@@ -214,6 +231,8 @@
 }
 
 .main-calendar-wrap {
+  position: relative;
+  z-index: 1;
   background: #fff;
   border-radius: 8px;
   padding: 16px;
@@ -555,6 +574,7 @@
 }
 
 .form-group input[type='text'],
+.form-group input[type='number'],
 .form-group input[type='date'],
 .form-group select {
   width: 100%;
@@ -633,4 +653,604 @@
 .modal-actions button.btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Admin page */
+.admin-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.admin-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #202124;
+  margin: 0;
+}
+
+.admin-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-body {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 24px;
+  background: #fff;
+}
+
+.admin-body .admin-sub-content:has(.common-code-section) {
+  background: #f3f4f6;
+  border-radius: 8px;
+  padding: 24px 28px 40px;
+}
+
+.admin-menu-table-wrap {
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.admin-menu-table {
+  width: 420px;
+  border-collapse: collapse;
+  background: #fff;
+}
+
+.admin-menu-th {
+  padding: 14px 20px;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  text-align: center;
+  vertical-align: middle;
+  color: #202124;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-top: none;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.admin-menu-th:first-child {
+  border-left: none;
+}
+
+.admin-menu-th--approver,
+.admin-menu-th--admin {
+  background: #fff;
+  color: #202124;
+}
+
+.admin-menu-td {
+  padding: 0;
+  border: 1px solid #e0e0e0;
+  border-top: none;
+  text-align: center;
+  vertical-align: middle;
+  background: #fff;
+}
+
+.admin-menu-td:first-child {
+  border-left: none;
+}
+
+.admin-menu-table tbody tr:last-child .admin-menu-td {
+  border-bottom: none;
+}
+
+.admin-menu-link {
+  display: block;
+  padding: 14px 20px;
+  font-size: 0.9375rem;
+  color: #1a73e8;
+  background: #fff;
+  text-decoration: none;
+  text-align: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.admin-menu-link:hover {
+  background: #f5f5f5;
+  color: #1557b0;
+}
+
+.admin-menu-empty {
+  display: block;
+  padding: 14px 20px;
+  min-height: 20px;
+  background: #fff;
+  text-align: center;
+}
+
+.admin-sub-content {
+  text-align: left;
+  padding: 24px 32px 48px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.admin-sub-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #202124;
+  margin: 0 0 12px;
+}
+
+.admin-sub-desc {
+  font-size: 0.9375rem;
+  color: #5f6368;
+  margin: 0 0 24px;
+}
+
+.admin-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 20px;
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  color: #5f6368;
+  background: #fff;
+  border: 1px solid #e8eaed;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+}
+
+.admin-back-link:hover {
+  color: #1a73e8;
+  background: #f8fbff;
+  border-color: #d2e3fc;
+}
+
+/* 공통코드 관리 — 참조 디자인 (헤더 + 두 패널) */
+.common-code-section {
+  --cc-accent: #2563eb;
+  --cc-accent-soft: #dbeafe;
+  --cc-surface: #fff;
+  --cc-border: #e5e7eb;
+  --cc-text: #111827;
+  --cc-text-muted: #6b7280;
+  --cc-error-bg: #fef2f2;
+  --cc-error-text: #b91c1c;
+  width: 100%;
+  max-width: 1200px;
+  box-sizing: border-box;
+}
+
+.common-code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.common-code-page-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--cc-text);
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.common-code-home-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 20px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #fff;
+  background: #1e3a8a;
+  border: none;
+  border-radius: 6px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.common-code-home-btn:hover {
+  background: #1e40af;
+}
+
+.common-code-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  background: var(--cc-error-bg);
+  color: var(--cc-error-text);
+  border-radius: 10px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  border: 1px solid #fecaca;
+  box-shadow: 0 1px 2px rgba(185, 28, 28, 0.06);
+}
+
+.common-code-error::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.common-code-layout {
+  display: grid;
+  grid-template-columns: 3fr 7fr;
+  gap: 32px;
+  margin-top: 20px;
+  align-items: start;
+  width: 100%;
+  background: #f9fafb;
+  padding: 24px;
+  border-radius: 8px;
+}
+
+@media (max-width: 1024px) {
+  .common-code-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.common-code-panel {
+  min-width: 0;
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  margin: 0;
+}
+
+.common-code-panel:last-child {
+  overflow: visible;
+}
+
+.common-code-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e5e7eb;
+  background: transparent;
+}
+
+/* 홈 버튼·추가 버튼·그리드 오른쪽 정렬: 중분류 패널 헤더/그리드를 패널 오른쪽 끝까지 확장 */
+.common-code-panel:last-child .common-code-panel-head {
+  margin-right: -20px;
+}
+
+.common-code-panel:last-child .common-code-table-wrap {
+  margin: 0 -20px -20px -20px;
+}
+
+.common-code-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: bold;
+  color: #333;
+  margin: 0;
+  min-width: 0;
+  flex: 1;
+}
+
+.common-code-panel-title .common-code-panel-bullet {
+  flex-shrink: 0;
+}
+
+.common-code-panel-bullet {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #000;
+  border-radius: 0;
+  flex-shrink: 0;
+  font-size: 16px;
+  color: #000;
+}
+
+.common-code-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.common-code-excel-btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: bold;
+  color: #fff;
+  background-color: #2563eb;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-right: 10px;
+}
+
+.common-code-excel-btn:hover {
+  background-color: #1e40af;
+}
+
+.common-code-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 20px;
+  font-weight: bold;
+  line-height: 1;
+  color: #fff;
+  background-color: #000;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.common-code-add-btn:hover:not(:disabled) {
+  background-color: #333;
+  color: #fff;
+}
+
+.common-code-add-btn:disabled,
+.common-code-add-btn--disabled {
+  cursor: not-allowed;
+  background: #d1d5db;
+  border-color: #9ca3af;
+  color: #6b7280;
+  opacity: 1;
+}
+
+.common-code-add-btn--disabled:hover {
+  background: #d1d5db;
+  border-color: #9ca3af;
+}
+
+.common-code-edit-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 400;
+  color: #333;
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.common-code-edit-btn:hover {
+  background-color: #f0f0f0;
+}
+
+.common-code-hint {
+  font-size: 0.8125rem;
+  color: var(--cc-text-muted);
+  margin: 10px 20px 0;
+  line-height: 1.4;
+}
+
+.common-code-table-wrap {
+  overflow: auto;
+  height: 500px;
+  background: #fff;
+  border-radius: 0 0 6px 6px;
+  margin: 0 -20px -20px;
+  border: 1px solid #e5e7eb;
+  border-top: none;
+}
+
+.common-code-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.common-code-table th,
+.common-code-table td {
+  padding: 4px 14px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+  border-right: 1px solid #e5e7eb;
+}
+
+.common-code-table th:last-child,
+.common-code-table td:last-child {
+  border-right: none;
+}
+
+.common-code-table th {
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--cc-text);
+  background: #f9fafb;
+  text-transform: none;
+}
+
+.common-code-table tbody tr {
+  cursor: default;
+  transition: background 0.15s;
+}
+
+.common-code-table tbody tr:nth-child(odd) td {
+  background-color: #fff;
+}
+
+.common-code-table tbody tr:nth-child(even) td {
+  background-color: #f5f5f5;
+}
+
+.common-code-table tbody tr:hover td {
+  background-color: #f5f5f5;
+}
+
+.common-code-table tbody tr.selected td {
+  background-color: #e3f2fd !important;
+}
+
+.common-code-table tbody tr.selected:hover td {
+  background-color: #e3f2fd !important;
+}
+
+.common-code-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.common-code-btn {
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 400;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid #ddd;
+  background-color: #fff;
+  color: #333;
+  transition: background-color 0.2s;
+}
+
+.common-code-btn:hover {
+  background-color: #f0f0f0;
+}
+
+.common-code-btn--danger {
+  color: #333;
+  border: 1px solid #ddd;
+  background-color: #fff;
+}
+
+.common-code-btn--danger:hover {
+  background-color: #fee2e2;
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.common-code-modal .form-group label .required {
+  color: #dc2626;
+}
+
+/* 중분류 등록 모달: 순서 입력란을 설명과 동일하게 전체 너비 */
+.common-code-modal .form-group input.common-code-input-full,
+.common-code-modal .form-group input[type="number"] {
+  width: 100% !important;
+  min-width: 0;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+.form-hint {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #6b7280;
+  margin-left: 4px;
+}
+
+.common-code-form-error {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  font-size: 0.875rem;
+  color: #b91c1c;
+  background: #fef2f2;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+}
+
+/* 공통코드 전용 모달 강조 */
+.common-code-modal {
+  border-radius: 12px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.12);
+}
+
+.common-code-modal .modal-header {
+  padding: 24px 24px 0;
+  border-bottom: none;
+}
+
+.common-code-modal .modal-header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--cc-text);
+}
+
+.common-code-modal .modal-body {
+  padding: 20px 24px 8px;
+}
+
+.common-code-modal .modal-actions {
+  padding: 20px 24px 24px;
+  margin-top: 8px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.common-code-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px 24px;
+}
+
+.common-code-loading-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #64748b;
+  animation: common-code-bounce 0.6s ease-in-out infinite;
+}
+
+.common-code-loading-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.common-code-loading-dot:nth-child(2) {
+  animation-delay: 0.1s;
+}
+
+.common-code-loading-dot:nth-child(3) {
+  animation-delay: 0.2s;
+}
+
+@keyframes common-code-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-6px);
+    opacity: 1;
+  }
 }

@@ -17,3 +17,23 @@ export interface ReservationEvent {
     color?: string
   }
 }
+
+/** 대분류 (공통코드) */
+export interface LookupType {
+  lookup_type_id: number
+  lookup_type_cd: number
+  lookup_type_nm: string
+}
+
+/** 중분류 (공통코드) */
+export interface LookupValue {
+  lookup_value_id: number
+  lookup_type_id: number
+  lookup_value_cd: number
+  lookup_value_nm: string
+  remark: string | null
+  seq: number | null
+  start_ymd: string | null
+  end_ymd: string | null
+  create_ymd: string | null
+}

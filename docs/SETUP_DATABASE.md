@@ -20,6 +20,8 @@ Supabase 대시보드 **SQL Editor**에서 아래 SQL을 실행합니다.
 
 ### 2-1. 회의실 테이블
 
+**방법 A – UUID 자동 생성** (기본, 추천)
+
 ```sql
 -- 회의실 마스터
 CREATE TABLE meeting_rooms (
@@ -29,15 +31,39 @@ CREATE TABLE meeting_rooms (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 예시 데이터 (선택)
-INSERT INTO meeting_rooms (id, name, capacity) VALUES
-  ('11111111-1111-1111-1111-111111111111', '본당 2층 302호', 8),
-  ('22222222-2222-2222-2222-222222222222', 'Open회의실 411-4', 8),
-  ('33333333-3333-3333-3333-333333333333', '본관 1층 베들레헴', 12),
-  ('44444444-4444-4444-4444-444444444444', '본관 지하 비전홀', 30);
+-- 예시 데이터 (선택, id 생략 시 자동 UUID)
+INSERT INTO meeting_rooms (name, capacity) VALUES
+  ('본당 2층 302호', 8),
+  ('Open회의실 411-4', 8),
+  ('본관 1층 베들레헴', 12),
+  ('본관 지하 비전홀', 30);
 ```
 
+**방법 B – 숫자 시퀀스(1, 2, 3, 4…) 자동 등록**
+
+```sql
+-- 회의실 마스터 (id 자동 1, 2, 3, 4 ...)
+CREATE TABLE meeting_rooms (
+  id BIGSERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  capacity INTEGER,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 예시 데이터 (id 생략 시 1부터 자동 증가)
+INSERT INTO meeting_rooms (name, capacity) VALUES
+  ('본당 2층 302호', 8),
+  ('Open회의실 411-4', 8),
+  ('본관 1층 베들레헴', 12),
+  ('본관 지하 비전홀', 30);
+```
+
+- `BIGSERIAL`: 행이 추가될 때마다 1, 2, 3, 4 … 처럼 자동으로 숫자가 붙습니다.
+- 시퀀스 방식으로 테이블을 쓰려면 **예약 테이블(2-2)** 의 `room_id`도 `BIGINT`로 맞춰야 합니다 (아래 2-2-B 참고).
+
 ### 2-2. 예약 테이블
+
+**방법 A – meeting_rooms.id가 UUID일 때**
 
 ```sql
 -- 예약
@@ -59,9 +85,59 @@ CREATE INDEX idx_reservations_dates ON reservations (start_at, end_at);
 CREATE INDEX idx_reservations_room ON reservations (room_id);
 ```
 
+**방법 B – meeting_rooms.id가 BIGSERIAL(숫자)일 때**
+
+```sql
+-- 예약 (room_id는 회의실의 숫자 id)
+CREATE TABLE reservations (
+  id BIGSERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  start_at TIMESTAMPTZ NOT NULL,
+  end_at TIMESTAMPTZ NOT NULL,
+  room_id BIGINT NOT NULL REFERENCES meeting_rooms(id) ON DELETE CASCADE,
+  booker TEXT,
+  is_all_day BOOLEAN DEFAULT false,
+  color TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX idx_reservations_dates ON reservations (start_at, end_at);
+CREATE INDEX idx_reservations_room ON reservations (room_id);
+```
+
 - `start_at`, `end_at`: ISO 형식으로 저장 (타임존 포함)
-- `room_id`: `meeting_rooms.id`와 연결
+- `room_id`: `meeting_rooms.id`와 연결 (UUID면 UUID, 숫자면 BIGINT)
 - `booker`, `color`, `is_all_day`: 현재 화면에서 쓰는 필드와 맞춤
+
+### 2-3. 공통코드 테이블 (대분류/중분류)
+
+```sql
+-- 대분류 (mr_lookup_type)
+CREATE TABLE mr_lookup_type (
+  lookup_type_id BIGSERIAL PRIMARY KEY,
+  lookup_type_cd INTEGER NOT NULL,
+  lookup_type_nm VARCHAR(100) NOT NULL
+);
+
+-- 중분류 (mr_lookup_value)
+CREATE TABLE mr_lookup_value (
+  lookup_value_id BIGSERIAL PRIMARY KEY,
+  lookup_type_id BIGINT NOT NULL REFERENCES mr_lookup_type(lookup_type_id) ON DELETE CASCADE,
+  lookup_value_cd INTEGER NOT NULL,
+  lookup_value_nm VARCHAR(50) NOT NULL,
+  remark VARCHAR(200),
+  seq INTEGER,
+  start_ymd VARCHAR(8),
+  end_ymd VARCHAR(8),
+  create_ymd VARCHAR(8)
+);
+
+CREATE INDEX idx_mr_lookup_value_type ON mr_lookup_value (lookup_type_id);
+```
+
+- `lookup_type_cd` / `lookup_value_cd`: 신규 저장 시 `max(코드)+10` 규칙으로 생성 (앱에서 계산 가능).
+- `start_ymd`, `end_ymd`, `create_ymd`: `YYYYMMDD` 문자열 저장 권장.
 
 ---
 
