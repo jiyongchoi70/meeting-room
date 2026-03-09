@@ -436,7 +436,7 @@ function UserEditModal({
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>사용자 수정</h3>
-          <button type="button" className="close-button" onClick={onClose} aria-label="닫기">
+          <button type="button" className="modal-close close-button" onClick={onClose} aria-label="닫기">
             ×
           </button>
         </div>

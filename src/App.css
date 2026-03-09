@@ -598,6 +598,13 @@
   padding: 20px;
 }
 
+.reservation-error-message {
+  margin: 0 0 16px;
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  color: #202124;
+}
+
 .form-group {
   margin-bottom: 16px;
 }

@@ -165,7 +165,7 @@ export default function ReservationModal({
       roomName: room.name,
       booker: '현재 사용자',
     })
-    onClose()
+    // 모달 닫기는 검증 후 부모(CalendarPage)에서 처리
   }
 
   if (!isOpen) return null

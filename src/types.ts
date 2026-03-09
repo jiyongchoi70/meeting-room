@@ -4,6 +4,11 @@ export interface MeetingRoom {
   capacity?: number
 }
 
+/** 예약 화면용 회의실 (end_ymd: 해당 회의실 예약 가능 마감일 YYYYMMDD) */
+export interface RoomForReservation extends MeetingRoom {
+  end_ymd: string
+}
+
 export interface ReservationEvent {
   id: string
   title: string
@@ -51,4 +56,28 @@ export interface MrUser {
   create_ymd: string | null
   update_ymd: string | null
   update_user: string | null
+}
+
+/** 회의실 (mr_room) */
+export interface MrRoom {
+  room_id: string
+  room_nm: string
+  duplicate_yn: number | null
+  reservation_available: number | null
+  reservation_ymd: string | null
+  /** 현재일로부터 예약가능 일수 (reservation_available=110일 때) */
+  reservation_cnt: number | null
+  confirm_yn: number | null
+  cnt: number | null
+  remark: string | null
+  seq: number | null
+  create_ymd: string | null
+  update_ymd: string | null
+}
+
+/** 회의실별 승인자 (mu_approver) */
+export interface MuApprover {
+  approver_id: number
+  room_id: string
+  user_uid: string
 }

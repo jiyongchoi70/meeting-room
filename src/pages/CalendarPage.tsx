@@ -3,16 +3,31 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import MainCalendar from '../components/MainCalendar'
 import MiniCalendar from '../components/MiniCalendar'
 import ReservationModal from '../components/ReservationModal'
-import { MOCK_ROOMS, MOCK_EVENTS } from '../mockData'
+import { MOCK_EVENTS } from '../mockData'
 import { useAuth } from '../hooks/useAuth'
 import { fetchMrUserByUid } from '../api/users'
-import type { ReservationEvent } from '../types'
+import { fetchRoomsForReservation, fetchApproversByRoomIds } from '../api/rooms'
+import type { ReservationEvent, RoomForReservation } from '../types'
 import '../App.css'
 
 /** mr_users.user_type: 110, 120 일 때만 관리자 메뉴 노출 */
 const ADMIN_USER_TYPES = [110, 120]
 /** mr_users.join: 110 일 때만 회의실 예약(만들기·수정·드래그) 가능 */
 const RESERVATION_ALLOWED_JOIN = 110
+/** mr_users.user_type: 110 = 관리자 (예약가능일 검증 생략) */
+const ADMIN_USER_TYPE = 110
+
+function endDateToYmd(end: Date): string {
+  const y = end.getFullYear()
+  const m = String(end.getMonth() + 1).padStart(2, '0')
+  const d = String(end.getDate()).padStart(2, '0')
+  return `${y}${m}${d}`
+}
+
+function formatYmdDisplay(ymd: string): string {
+  if (ymd.length !== 8) return ymd
+  return `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`
+}
 
 export default function CalendarPage() {
   const location = useLocation()
@@ -58,11 +73,20 @@ export default function CalendarPage() {
     await signOut()
   }
   const [events, setEvents] = useState<ReservationEvent[]>(MOCK_EVENTS)
+  const [roomsForReservation, setRoomsForReservation] = useState<RoomForReservation[]>([])
+  const [reservationError, setReservationError] = useState<string | null>(null)
   const [currentDate, setCurrentDate] = useState(() => new Date(2026, 1, 1))
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalInitialDate, setModalInitialDate] = useState<Date | null>(null)
   const [modalInitialEvent, setModalInitialEvent] = useState<ReservationEvent | null>(null)
+
+  /** 예약 화면용 회의실 목록 로드 */
+  useEffect(() => {
+    fetchRoomsForReservation()
+      .then(setRoomsForReservation)
+      .catch(() => setRoomsForReservation([]))
+  }, [])
 
   const handleCreateClick = useCallback(() => {
     if (!canReserve) return
@@ -107,7 +131,7 @@ export default function CalendarPage() {
   }, [])
 
   const handleSaveReservation = useCallback(
-    (data: {
+    async (data: {
       title: string
       start: Date
       end: Date
@@ -115,33 +139,59 @@ export default function CalendarPage() {
       roomName: string
       booker?: string
     }) => {
-      if (modalInitialEvent) {
-        setEvents((prev) =>
-          prev.map((e) =>
-            e.id === modalInitialEvent.id
-              ? {
-                  ...e,
-                  ...data,
-                  start: data.start.toISOString(),
-                  end: data.end.toISOString(),
-                }
-              : e
+      setReservationError(null)
+      const applyAndClose = () => {
+        if (modalInitialEvent) {
+          setEvents((prev) =>
+            prev.map((e) =>
+              e.id === modalInitialEvent.id
+                ? {
+                    ...e,
+                    ...data,
+                    start: data.start.toISOString(),
+                    end: data.end.toISOString(),
+                  }
+                : e
+            )
           )
-        )
-      } else {
-        const newEvent: ReservationEvent = {
-          id: `evt-${Date.now()}`,
-          title: data.title,
-          start: data.start.toISOString(),
-          end: data.end.toISOString(),
-          roomId: data.roomId,
-          roomName: data.roomName,
-          booker: data.booker,
+        } else {
+          const newEvent: ReservationEvent = {
+            id: `evt-${Date.now()}`,
+            title: data.title,
+            start: data.start.toISOString(),
+            end: data.end.toISOString(),
+            roomId: data.roomId,
+            roomName: data.roomName,
+            booker: data.booker,
+          }
+          setEvents((prev) => [...prev, newEvent])
         }
-        setEvents((prev) => [...prev, newEvent])
+        setModalOpen(false)
       }
+
+      if (mrUser?.user_type === ADMIN_USER_TYPE) {
+        applyAndClose()
+        return
+      }
+      const approvers = await fetchApproversByRoomIds([data.roomId])
+      const isApprover = user?.id && approvers.some((a) => a.user_uid === user.id)
+      if (isApprover) {
+        applyAndClose()
+        return
+      }
+      const room = roomsForReservation.find((r) => r.id === data.roomId)
+      const end_ymd = room?.end_ymd
+      const endStr = endDateToYmd(data.end)
+      if (!end_ymd || endStr <= end_ymd) {
+        applyAndClose()
+        return
+      }
+      const capacity = room?.capacity != null ? String(room.capacity) : ''
+      setReservationError(
+        `${data.roomName}${capacity ? ` (${capacity})` : ''}은(는) ${formatYmdDisplay(end_ymd)} 까지만 예약이 가능합니다.`
+      )
     },
-    [modalInitialEvent]
+    [modalInitialEvent, mrUser?.user_type, user?.id, roomsForReservation]
   )
 
   return (
@@ -233,10 +283,36 @@ export default function CalendarPage() {
         isOpen={modalOpen}
         initialDate={modalInitialDate}
         initialEvent={modalInitialEvent}
-        rooms={MOCK_ROOMS}
+        rooms={roomsForReservation}
         onClose={() => setModalOpen(false)}
         onSave={handleSaveReservation}
       />
+
+      {reservationError != null && (
+        <div className="modal-overlay" onClick={() => setReservationError(null)} role="dialog" aria-modal="true">
+          <div className="reservation-modal reservation-error-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>예약 불가</h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setReservationError(null)}
+                aria-label="닫기"
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <p className="reservation-error-message">{reservationError}</p>
+              <div className="modal-actions">
+                <button type="button" className="btn-primary" onClick={() => setReservationError(null)}>
+                  확인
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

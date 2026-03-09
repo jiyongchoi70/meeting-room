@@ -2,6 +2,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import CommonCodeSection from '../components/CommonCodeSection'
 import UsersSection from '../components/UsersSection'
+import RoomsSection from '../components/RoomsSection'
 import '../App.css'
 
 const SECTION_TITLES: Record<string, string> = {
@@ -45,7 +46,7 @@ export default function AdminSubPage() {
 
       <main className="admin-body">
         <div className="admin-sub-content">
-          {section !== 'codes' && section !== 'users' && (
+          {section !== 'codes' && section !== 'users' && section !== 'rooms' && (
             <Link to="/admin" className="app-nav-item admin-back-link">
               ← 관리자 메뉴로
             </Link>
@@ -54,6 +55,8 @@ export default function AdminSubPage() {
             <CommonCodeSection />
           ) : section === 'users' ? (
             <UsersSection />
+          ) : section === 'rooms' ? (
+            <RoomsSection />
           ) : (
             <>
               <h2 className="admin-sub-title">{title}</h2>
