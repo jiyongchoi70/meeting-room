@@ -22,3 +22,4 @@ CREATE TABLE IF NOT EXISTS mr_lookup_value (
 );
 
 CREATE INDEX IF NOT EXISTS idx_mr_lookup_value_type ON mr_lookup_value (lookup_type_id);
+에 lookup 170 코드(주기 단위)를 넣는 구조. 코드값이 스펙과 다르면 DB·문서·화면 중 하나로 통일 필요
