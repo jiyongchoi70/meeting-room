@@ -5,7 +5,6 @@ import type { ColDef, ICellRendererParams } from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import type { MrRoom, MrUser, LookupValue } from '../types'
-import { useAuth } from '../hooks/useAuth'
 import { fetchLookupValuesByTypeCd } from '../api/lookup'
 import { fromYmd } from '../api/lookup'
 import {

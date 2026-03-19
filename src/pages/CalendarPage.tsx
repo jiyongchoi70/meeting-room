@@ -3,10 +3,26 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import MainCalendar from '../components/MainCalendar'
 import MiniCalendar from '../components/MiniCalendar'
 import ReservationModal from '../components/ReservationModal'
-import { MOCK_EVENTS } from '../mockData'
 import { useAuth } from '../hooks/useAuth'
 import { fetchMrUserByUid } from '../api/users'
 import { fetchRoomsForReservation, fetchApproversByRoomIds } from '../api/rooms'
+import {
+  insertReservation,
+  updateReservation,
+  updateReservationDates,
+  deleteReservation,
+  deleteReservationThisAndFollowing,
+  deleteReservationAllInGroup,
+  fetchReservationsForCalendar,
+  fetchBookerInfoByUserUid,
+  fetchReservationIdsForStatusUpdate,
+  batchUpdateReservationStatus,
+  STATUS_APPLIED,
+  STATUS_APPROVED,
+  STATUS_REJECTED,
+  type SaveReservationPayload,
+  type InsertReservationResult,
+} from '../api/reservations'
 import type { ReservationEvent, RoomForReservation } from '../types'
 import '../App.css'
 
@@ -72,7 +88,7 @@ export default function CalendarPage() {
   const handleLogout = async () => {
     await signOut()
   }
-  const [events, setEvents] = useState<ReservationEvent[]>(MOCK_EVENTS)
+  const [events, setEvents] = useState<ReservationEvent[]>([])
   const [roomsForReservation, setRoomsForReservation] = useState<RoomForReservation[]>([])
   const [reservationError, setReservationError] = useState<string | null>(null)
   const [currentDate, setCurrentDate] = useState(() => new Date(2026, 1, 1))
@@ -80,6 +96,31 @@ export default function CalendarPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [modalInitialDate, setModalInitialDate] = useState<Date | null>(null)
   const [modalInitialEvent, setModalInitialEvent] = useState<ReservationEvent | null>(null)
+  /** 월 보기에서 권한 없이 드롭 시 캘린더 리마운트용. FullCalendar 월 보기는 events prop만으로 원위치가 안 되므로 key 변경으로 강제 재마운트 */
+  const [monthRevertKey, setMonthRevertKey] = useState(0)
+  /** 반복 예약 저장 후 캘린더 재조회 트리거 */
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0)
+  /** 캘린더 필터: 선택한 회의실만 표시. '' 또는 null = 전체 */
+  const [selectedRoomId, setSelectedRoomId] = useState<string>('')
+  /** 모달에 열린 예약의 회의실 승인자 uid 목록 (승인/반려 버튼 노출 판단) */
+  const [approversForModalRoom, setApproversForModalRoom] = useState<string[]>([])
+
+  /** 모달에 예약(initialEvent)이 열려 있을 때 해당 회의실 승인자 목록 조회 */
+  useEffect(() => {
+    if (!modalOpen || !modalInitialEvent?.roomId) {
+      setApproversForModalRoom([])
+      return
+    }
+    let cancelled = false
+    fetchApproversByRoomIds([modalInitialEvent.roomId])
+      .then((list) => {
+        if (!cancelled) setApproversForModalRoom(list.map((a) => a.user_uid))
+      })
+      .catch(() => {
+        if (!cancelled) setApproversForModalRoom([])
+      })
+    return () => { cancelled = true }
+  }, [modalOpen, modalInitialEvent?.roomId])
 
   /** 예약 화면용 회의실 목록 로드 */
   useEffect(() => {
@@ -87,6 +128,27 @@ export default function CalendarPage() {
       .then(setRoomsForReservation)
       .catch(() => setRoomsForReservation([]))
   }, [])
+
+  /** 로그인 시 캘린더용 예약 목록 로드 (드래그 시 DB 반영을 위해 reservationId 포함) */
+  useEffect(() => {
+    if (!user?.id || mrUser == null) return
+    const y = currentDate.getFullYear()
+    const m = currentDate.getMonth()
+    const first = new Date(y, m - 1, 1)
+    const start = `${first.getFullYear()}-${String(first.getMonth() + 1).padStart(2, '0')}-01`
+    const last = new Date(y, m + 3, 0)
+    const end = `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`
+    const isAdmin = mrUser.user_type != null && ADMIN_USER_TYPES.includes(mrUser.user_type)
+    let cancelled = false
+    fetchReservationsForCalendar(start, end, isAdmin, user.id, selectedRoomId || null)
+      .then((list) => {
+        if (!cancelled) setEvents(list as ReservationEvent[])
+      })
+      .catch(() => {
+        if (!cancelled) setEvents([])
+      })
+    return () => { cancelled = true }
+  }, [user?.id, mrUser?.user_type, currentDate.getFullYear(), currentDate.getMonth(), calendarRefreshKey, selectedRoomId])
 
   const handleCreateClick = useCallback(() => {
     if (!canReserve) return
@@ -114,21 +176,87 @@ export default function CalendarPage() {
     setModalOpen(true)
   }, [canReserve])
 
-  const handleEventDrop = useCallback((eventId: string, start: Date, end: Date) => {
-    setEvents((prev) =>
-      prev.map((e) =>
-        e.id === eventId ? { ...e, start: start.toISOString(), end: end.toISOString() } : e
-      )
-    )
-  }, [])
+  const handleEventDrop = useCallback(
+    async (event: ReservationEvent, start: Date, end: Date) => {
+      if (event.extendedProps?.status === STATUS_REJECTED) {
+        setReservationError('반려된 예약은 이동할 수 없습니다.')
+        setEvents((prev) =>
+          prev.map((e) => (e.id === event.id ? { ...e } : e))
+        )
+        return
+      }
+      const createUser = event.extendedProps?.createUser
+      if (user?.id && createUser != null && createUser !== user.id) {
+        setReservationError('본인이 신청한 예약만 이동할 수 있습니다.')
+        setEvents((prev) =>
+          prev.map((e) => (e.id === event.id ? { ...e } : e))
+        )
+        return
+      }
 
-  const handleEventResize = useCallback((eventId: string, start: Date, end: Date) => {
-    setEvents((prev) =>
-      prev.map((e) =>
-        e.id === eventId ? { ...e, start: start.toISOString(), end: end.toISOString() } : e
+      const reservationId =
+        event.extendedProps?.reservationId ??
+        (event.id && /^[0-9a-f-]{36}$/i.test(event.id) ? event.id : null)
+
+      if (reservationId) {
+        try {
+          await updateReservationDates(reservationId, start.toISOString(), end.toISOString())
+        } catch (err) {
+          setReservationError(err instanceof Error ? err.message : '예약 일시 변경 실패')
+          setMonthRevertKey((k) => k + 1)
+          return
+        }
+      }
+
+      setEvents((prevEvents) =>
+        prevEvents.map((e) =>
+          e.id === event.id ? { ...e, start: start.toISOString(), end: end.toISOString() } : e
+        )
       )
-    )
-  }, [])
+    },
+    [user?.id]
+  )
+
+  const handleEventResize = useCallback(
+    async (event: ReservationEvent, start: Date, end: Date) => {
+      if (event.extendedProps?.status === STATUS_REJECTED) {
+        setReservationError('반려된 예약은 이동할 수 없습니다.')
+        setEvents((prev) =>
+          prev.map((e) => (e.id === event.id ? { ...e } : e))
+        )
+        return
+      }
+      const createUser = event.extendedProps?.createUser
+      if (user?.id && createUser != null && createUser !== user.id) {
+        setReservationError('본인이 신청한 예약만 이동할 수 있습니다.')
+        setEvents((prev) =>
+          prev.map((e) => (e.id === event.id ? { ...e } : e))
+        )
+        return
+      }
+
+      const reservationId =
+        event.extendedProps?.reservationId ??
+        (event.id && /^[0-9a-f-]{36}$/i.test(event.id) ? event.id : null)
+
+      if (reservationId) {
+        try {
+          await updateReservationDates(reservationId, start.toISOString(), end.toISOString())
+        } catch (err) {
+          setReservationError(err instanceof Error ? err.message : '예약 일시 변경 실패')
+          setMonthRevertKey((k) => k + 1)
+          return
+        }
+      }
+
+      setEvents((prevEvents) =>
+        prevEvents.map((e) =>
+          e.id === event.id ? { ...e, start: start.toISOString(), end: end.toISOString() } : e
+        )
+      )
+    },
+    [user?.id]
+  )
 
   const handleSaveReservation = useCallback(
     async (data: {
@@ -138,31 +266,95 @@ export default function CalendarPage() {
       roomId: string
       roomName: string
       booker?: string
+      recurrenceCd?: number | null
+      recurrenceEndYmd?: string | null
+      isAllDay?: boolean
+      cycleNumber?: number
+      cycleUnitCd?: number | null
+      selectedDays?: boolean[]
+      repeatCondition?: string | null
     }) => {
       setReservationError(null)
-      const applyAndClose = () => {
+      if (!user?.id) {
+        setReservationError('로그인 후 예약할 수 있습니다.')
+        return
+      }
+
+      const buildPayload = (): SaveReservationPayload => {
+        const sd = data.selectedDays
+        return {
+          title: data.title,
+          room_id: data.roomId,
+          allday_yn: data.isAllDay ? 'Y' : 'N',
+          start_ymd: data.start.toISOString(),
+          end_ymd: data.end.toISOString(),
+          repeat_id: data.recurrenceCd ?? null,
+          repeat_end_ymd: data.recurrenceEndYmd ?? null,
+          repeat_cycle: data.cycleNumber ?? null,
+          repeat_user: data.cycleUnitCd ?? null,
+          sun_yn: sd && sd[0] ? 'Y' : 'N',
+          mon_yn: sd && sd[1] ? 'Y' : 'N',
+          tue_yn: sd && sd[2] ? 'Y' : 'N',
+          wed_yn: sd && sd[3] ? 'Y' : 'N',
+          thu_yn: sd && sd[4] ? 'Y' : 'N',
+          fri_yn: sd && sd[5] ? 'Y' : 'N',
+          sat_yn: sd && sd[6] ? 'Y' : 'N',
+          repeat_condition: data.repeatCondition ?? null,
+        }
+      }
+
+      const applyAndClose = (
+        reservationId?: string,
+        booker?: { bookerName: string; bookerPositionName: string; bookerPhone: string },
+        savedStatus?: number
+      ) => {
         if (modalInitialEvent) {
           setEvents((prev) =>
             prev.map((e) =>
               e.id === modalInitialEvent.id
                 ? {
                     ...e,
-                    ...data,
+                    title: data.title,
                     start: data.start.toISOString(),
                     end: data.end.toISOString(),
+                    roomId: data.roomId,
+                    roomName: data.roomName,
+                    booker: data.booker,
+                    extendedProps: {
+                      ...e.extendedProps,
+                      isAllDay: data.isAllDay,
+                      recurrenceCd: data.recurrenceCd ?? undefined,
+                      recurrenceEndYmd: data.recurrenceEndYmd ?? undefined,
+                      reservationId: e.extendedProps?.reservationId ?? reservationId,
+                      ...(savedStatus != null && { status: savedStatus }),
+                    },
                   }
                 : e
             )
           )
         } else {
+          const id = reservationId ?? `evt-${Date.now()}`
           const newEvent: ReservationEvent = {
-            id: `evt-${Date.now()}`,
+            id,
             title: data.title,
             start: data.start.toISOString(),
             end: data.end.toISOString(),
             roomId: data.roomId,
             roomName: data.roomName,
             booker: data.booker,
+            extendedProps: {
+              isAllDay: data.isAllDay,
+              recurrenceCd: data.recurrenceCd ?? undefined,
+              recurrenceEndYmd: data.recurrenceEndYmd ?? undefined,
+              reservationId: reservationId ?? undefined,
+              status: savedStatus ?? STATUS_APPLIED,
+              createUser: user.id,
+              ...(booker && {
+                bookerName: booker.bookerName,
+                bookerPositionName: booker.bookerPositionName,
+                bookerPhone: booker.bookerPhone,
+              }),
+            },
           }
           setEvents((prev) => [...prev, newEvent])
         }
@@ -170,28 +362,109 @@ export default function CalendarPage() {
       }
 
       if (mrUser?.user_type === ADMIN_USER_TYPE) {
-        applyAndClose()
-        return
+        // 검증 생략
+      } else {
+        const approvers = await fetchApproversByRoomIds([data.roomId])
+        const isApprover = user?.id && approvers.some((a) => a.user_uid === user.id)
+        if (!isApprover) {
+          const room = roomsForReservation.find((r) => r.id === data.roomId)
+          const end_ymd = room?.end_ymd
+          const limitMsg = `${data.roomName}은(는) ${end_ymd ? formatYmdDisplay(end_ymd) : ''} 까지만 예약이 가능합니다.`
+
+          const endStr = endDateToYmd(data.end)
+          if (end_ymd && endStr > end_ymd) {
+            setReservationError(limitMsg)
+            return
+          }
+
+          if (data.recurrenceEndYmd && end_ymd) {
+            const repeatEndStr = String(data.recurrenceEndYmd).replace(/\D/g, '').slice(0, 8)
+            if (repeatEndStr.length === 8 && repeatEndStr > end_ymd) {
+              setReservationError(limitMsg)
+              return
+            }
+          }
+        }
       }
-      const approvers = await fetchApproversByRoomIds([data.roomId])
-      const isApprover = user?.id && approvers.some((a) => a.user_uid === user.id)
-      if (isApprover) {
-        applyAndClose()
-        return
+
+      const payload = buildPayload()
+      const reservationIdForUpdate =
+        modalInitialEvent?.extendedProps?.reservationId ??
+        (modalInitialEvent?.id && /^[0-9a-f-]{36}$/i.test(modalInitialEvent.id)
+          ? modalInitialEvent.id
+          : null)
+
+      try {
+        if (reservationIdForUpdate) {
+          const updated = await updateReservation(reservationIdForUpdate, payload)
+          applyAndClose(reservationIdForUpdate, undefined, updated.status)
+        } else {
+          const result: InsertReservationResult = await insertReservation(payload, user.id)
+          const isRepeat = 'isRepeat' in result && result.isRepeat
+          const reservation = 'isRepeat' in result ? result.reservation : result
+          if (isRepeat) {
+            setModalOpen(false)
+            setCalendarRefreshKey((k) => k + 1)
+          } else {
+            const booker = await fetchBookerInfoByUserUid(user.id).catch(() => undefined)
+            applyAndClose(reservation.reservation_id, booker, reservation.status)
+          }
+        }
+      } catch (err) {
+        setReservationError(err instanceof Error ? err.message : '예약 저장에 실패했습니다.')
       }
-      const room = roomsForReservation.find((r) => r.id === data.roomId)
-      const end_ymd = room?.end_ymd
-      const endStr = endDateToYmd(data.end)
-      if (!end_ymd || endStr <= end_ymd) {
-        applyAndClose()
-        return
-      }
-      const capacity = room?.capacity != null ? String(room.capacity) : ''
-      setReservationError(
-        `${data.roomName}${capacity ? ` (${capacity})` : ''}은(는) ${formatYmdDisplay(end_ymd)} 까지만 예약이 가능합니다.`
-      )
     },
-    [modalInitialEvent, mrUser?.user_type, user?.id, roomsForReservation]
+    [modalInitialEvent, mrUser?.user_type, user, roomsForReservation]
+  )
+
+  const handleApprove = useCallback(
+    async (reservationId: string, repeatGroupId?: string | null) => {
+      if (!user?.id) return
+      try {
+        const ids = await fetchReservationIdsForStatusUpdate(reservationId, repeatGroupId)
+        await batchUpdateReservationStatus(ids, STATUS_APPROVED, user.id)
+        setEvents((prev) =>
+          prev.map((e) => {
+            const rid = e.extendedProps?.reservationId ?? e.id
+            if (ids.includes(rid))
+              return { ...e, extendedProps: { ...e.extendedProps, status: STATUS_APPROVED } }
+            return e
+          })
+        )
+        setCalendarRefreshKey((k) => k + 1)
+        setModalOpen(false)
+      } catch (err) {
+        setReservationError(err instanceof Error ? err.message : '승인 처리에 실패했습니다.')
+      }
+    },
+    [user?.id]
+  )
+
+  const handleReject = useCallback(
+    async (
+      reservationId: string,
+      repeatGroupId?: string | null,
+      returnComment?: string
+    ) => {
+      if (!user?.id) return
+      try {
+        const ids = await fetchReservationIdsForStatusUpdate(reservationId, repeatGroupId)
+        await batchUpdateReservationStatus(ids, STATUS_REJECTED, user.id, returnComment ?? null)
+        setEvents((prev) =>
+          prev.map((e) => {
+            const rid = e.extendedProps?.reservationId ?? e.id
+            if (ids.includes(rid))
+              return { ...e, extendedProps: { ...e.extendedProps, status: STATUS_REJECTED } }
+            return e
+          })
+        )
+        setCalendarRefreshKey((k) => k + 1)
+        setModalOpen(false)
+      } catch (err) {
+        setReservationError(err instanceof Error ? err.message : '반려 처리에 실패했습니다.')
+      }
+    },
+    [user?.id]
   )
 
   return (
@@ -258,10 +531,27 @@ export default function CalendarPage() {
               setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1))
             }
           />
+          <div className="sidebar-filter">
+            <label htmlFor="calendar-room-filter">회의실명</label>
+            <select
+              id="calendar-room-filter"
+              value={selectedRoomId}
+              onChange={(e) => setSelectedRoomId(e.target.value)}
+              aria-label="캘린더에 표시할 회의실 선택"
+            >
+              <option value="">전체</option>
+              {roomsForReservation.map((room) => (
+                <option key={room.id} value={room.id}>
+                  {room.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </aside>
 
         <main className="main-content">
           <MainCalendar
+            key={monthRevertKey}
             events={events}
             currentDate={currentDate}
             onDateClick={handleCalendarDateClick}
@@ -274,7 +564,12 @@ export default function CalendarPage() {
             }}
             editable={canReserve}
             onEventDrop={handleEventDrop}
+            onEventDropNotAllowed={(message) => {
+              setReservationError(message ?? '본인이 신청한 예약만 이동할 수 있습니다.')
+              setMonthRevertKey((k) => k + 1)
+            }}
             onEventResize={handleEventResize}
+            currentUserUid={user?.id}
           />
         </main>
       </div>
@@ -284,8 +579,39 @@ export default function CalendarPage() {
         initialDate={modalInitialDate}
         initialEvent={modalInitialEvent}
         rooms={roomsForReservation}
+        currentUserUid={user?.id}
+        isAdmin={Boolean(mrUser && mrUser.user_type != null && ADMIN_USER_TYPES.includes(mrUser.user_type))}
+        isApproverForRoom={Boolean(user?.id && approversForModalRoom.includes(user.id))}
         onClose={() => setModalOpen(false)}
         onSave={handleSaveReservation}
+        onApprove={handleApprove}
+        onReject={handleReject}
+        onDelete={async (reservationId) => {
+          try {
+            await deleteReservation(reservationId)
+            setEvents((prev) => prev.filter((e) => e.id !== reservationId))
+            setModalOpen(false)
+          } catch (err) {
+            setReservationError(err instanceof Error ? err.message : '예약 삭제에 실패했습니다.')
+          }
+        }}
+        onDeleteRecurring={async ({ reservationId, repeatGroupId, scope }) => {
+          try {
+            if (scope === 'this') {
+              await deleteReservation(reservationId)
+              setEvents((prev) => prev.filter((e) => e.id !== reservationId))
+            } else if (scope === 'thisAndFollowing') {
+              await deleteReservationThisAndFollowing(reservationId)
+              setCalendarRefreshKey((k) => k + 1)
+            } else {
+              await deleteReservationAllInGroup(repeatGroupId)
+              setCalendarRefreshKey((k) => k + 1)
+            }
+            setModalOpen(false)
+          } catch (err) {
+            setReservationError(err instanceof Error ? err.message : '예약 삭제에 실패했습니다.')
+          }
+        }}
       />
 
       {reservationError != null && (

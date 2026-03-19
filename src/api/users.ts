@@ -64,11 +64,11 @@ export function filterUsers(users: MrUser[], filters: UserFilters): MrUser[] {
     const q = phoneWithoutHyphens(filters.phone)
     list = list.filter((u) => phoneWithoutHyphens(u.phone).includes(q))
   }
-  if (filters.user_type != null && filters.user_type !== '') {
+  if (filters.user_type != null) {
     const v = Number(filters.user_type)
     if (!Number.isNaN(v)) list = list.filter((u) => u.user_type === v)
   }
-  if (filters.join != null && filters.join !== '') {
+  if (filters.join != null) {
     const v = Number(filters.join)
     if (!Number.isNaN(v)) list = list.filter((u) => u.join === v)
   }

@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { MrRoom, MuApprover, RoomForReservation } from '../types'
+import type { MrRoom, MrApprover, RoomForReservation } from '../types'
 
 function todayYmd(): string {
   const d = new Date()
@@ -110,26 +110,26 @@ export async function deleteRoom(roomId: string): Promise<void> {
 }
 
 /** 회의실별 승인자 목록 조회 (room_id 목록에 대해) */
-export async function fetchApproversByRoomIds(roomIds: string[]): Promise<MuApprover[]> {
+export async function fetchApproversByRoomIds(roomIds: string[]): Promise<MrApprover[]> {
   if (roomIds.length === 0) return []
   const { data, error } = await supabase
-    .from('mu_approver')
+    .from('mr_approver')
     .select('*')
     .in('room_id', roomIds)
   if (error) {
     console.error('[fetchApproversByRoomIds]', error.message)
     return []
   }
-  return (data ?? []) as MuApprover[]
+  return (data ?? []) as MrApprover[]
 }
 
 /** 한 회의실의 승인자 저장 (기존 삭제 후 일괄 삽입) */
 export async function saveApprovers(roomId: string, userUids: string[]): Promise<void> {
-  const { error: delError } = await supabase.from('mu_approver').delete().eq('room_id', roomId)
+  const { error: delError } = await supabase.from('mr_approver').delete().eq('room_id', roomId)
   if (delError) throw delError
   if (userUids.length === 0) return
   const rows = userUids.map((user_uid) => ({ room_id: roomId, user_uid }))
-  const { error: insError } = await supabase.from('mu_approver').insert(rows)
+  const { error: insError } = await supabase.from('mr_approver').insert(rows)
   if (insError) throw insError
 }
 

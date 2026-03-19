@@ -153,21 +153,197 @@ COMMENT ON COLUMN mr_room.create_ymd IS '생성일 YYYYMMDD';
 COMMENT ON COLUMN mr_room.update_ymd IS '수정일 YYYYMMDD';
 
 -- ------------------------------------------------------------
--- 회의실별 승인자 (mu_approver)
+-- 회의실별 승인자 (mr_approver)
 -- 승인자 표시: user_name 오름차순 첫 번째 → "김일동 외 1명"
 -- 승인자 없으면 빈칸 (승인여부와 무관)
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS mu_approver (
+CREATE TABLE IF NOT EXISTS mr_approver (
   approver_id  BIGSERIAL PRIMARY KEY,
   room_id      UUID NOT NULL REFERENCES mr_room(room_id) ON DELETE CASCADE,
   user_uid     VARCHAR(50) NOT NULL REFERENCES mr_users(user_uid) ON DELETE CASCADE,
   UNIQUE(room_id, user_uid)
 );
 
-CREATE INDEX IF NOT EXISTS idx_mu_approver_room ON mu_approver (room_id);
-CREATE INDEX IF NOT EXISTS idx_mu_approver_user ON mu_approver (user_uid);
+CREATE INDEX IF NOT EXISTS idx_mr_approver_room ON mr_approver (room_id);
+CREATE INDEX IF NOT EXISTS idx_mr_approver_user ON mr_approver (user_uid);
 
-COMMENT ON TABLE mu_approver IS '회의실별 승인자';
-COMMENT ON COLUMN mu_approver.approver_id IS 'PK';
-COMMENT ON COLUMN mu_approver.room_id IS 'FK → mr_room.room_id';
-COMMENT ON COLUMN mu_approver.user_uid IS 'FK → mr_users.user_uid';
+COMMENT ON TABLE mr_approver IS '회의실별 승인자';
+COMMENT ON COLUMN mr_approver.approver_id IS 'PK';
+COMMENT ON COLUMN mr_approver.room_id IS 'FK → mr_room.room_id';
+COMMENT ON COLUMN mr_approver.user_uid IS 'FK → mr_users.user_uid';
+
+-- ------------------------------------------------------------
+-- 예약 (mr_reservations) — 결재·반복 포함 (기존 reservations 미사용)
+-- 결재상태: lookup 180 (100=신청, 110=승인, 120=반려)
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS mr_reservations (
+  reservation_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title           VARCHAR(100) NOT NULL,
+  room_id         UUID NOT NULL REFERENCES mr_room(room_id) ON DELETE CASCADE,
+  allday_yn       VARCHAR(1) DEFAULT 'N',
+  start_ymd       TIMESTAMPTZ NOT NULL,
+  end_ymd         TIMESTAMPTZ NOT NULL,
+  repeat_id       VARCHAR(100),
+  repeat_end_ymd  VARCHAR(8),
+  repeat_cycle    INTEGER,
+  repeat_user     VARCHAR(100),
+  sun_yn          VARCHAR(1) DEFAULT 'N',
+  mon_yn          VARCHAR(1) DEFAULT 'N',
+  tue_yn          VARCHAR(1) DEFAULT 'N',
+  wed_yn          VARCHAR(1) DEFAULT 'N',
+  thu_yn          VARCHAR(1) DEFAULT 'N',
+  fri_yn          VARCHAR(1) DEFAULT 'N',
+  sat_yn          VARCHAR(1) DEFAULT 'N',
+  repeat_condition VARCHAR(30),
+  status          INTEGER,
+  approver        VARCHAR(50) REFERENCES mr_users(user_uid) ON DELETE SET NULL,
+  return_comment  VARCHAR(500),
+  create_user     VARCHAR(50) NOT NULL REFERENCES mr_users(user_uid) ON DELETE CASCADE,
+  create_at       TIMESTAMPTZ DEFAULT now(),
+  update_at       TIMESTAMPTZ DEFAULT now()
+);
+
+-- (기존 DB에 컬럼 추가 시) ALTER TABLE mr_reservations ADD COLUMN IF NOT EXISTS return_comment VARCHAR(500);
+
+CREATE INDEX IF NOT EXISTS idx_mr_reservations_room   ON mr_reservations (room_id);
+CREATE INDEX IF NOT EXISTS idx_mr_reservations_dates  ON mr_reservations (start_ymd, end_ymd);
+CREATE INDEX IF NOT EXISTS idx_mr_reservations_user   ON mr_reservations (create_user);
+CREATE INDEX IF NOT EXISTS idx_mr_reservations_status ON mr_reservations (status);
+
+COMMENT ON TABLE mr_reservations IS '회의실 예약 (결재·반복 포함)';
+COMMENT ON COLUMN mr_reservations.reservation_id IS 'PK';
+COMMENT ON COLUMN mr_reservations.status IS '결재상태 (lookup 180: 100=신청, 110=승인, 120=반려)';
+COMMENT ON COLUMN mr_reservations.approver IS '승인자 user_uid';
+COMMENT ON COLUMN mr_reservations.create_user IS '신청자 user_uid';
+
+-- ------------------------------------------------------------
+-- (선택) 회의실 예약 반복 옵션 — lookup_type_cd 160
+-- 회의실 예약 모달의 "반복" 드롭다운: 반복없음(100), 매일(110), 매주(120), 매월(130)
+-- ------------------------------------------------------------
+INSERT INTO mr_lookup_type (lookup_type_cd, lookup_type_nm)
+SELECT 160, '반복'
+WHERE NOT EXISTS (SELECT 1 FROM mr_lookup_type WHERE lookup_type_cd = 160);
+
+INSERT INTO mr_lookup_value (lookup_type_id, lookup_value_cd, lookup_value_nm, seq)
+SELECT t.lookup_type_id, 100, '반복없음', 1
+FROM mr_lookup_type t
+WHERE t.lookup_type_cd = 160
+  AND NOT EXISTS (
+    SELECT 1 FROM mr_lookup_value v
+    INNER JOIN mr_lookup_type t2 ON v.lookup_type_id = t2.lookup_type_id
+    WHERE t2.lookup_type_cd = 160 AND v.lookup_value_cd = 100
+  );
+
+INSERT INTO mr_lookup_value (lookup_type_id, lookup_value_cd, lookup_value_nm, seq)
+SELECT t.lookup_type_id, 110, '매일', 2
+FROM mr_lookup_type t
+WHERE t.lookup_type_cd = 160
+  AND NOT EXISTS (
+    SELECT 1 FROM mr_lookup_value v
+    INNER JOIN mr_lookup_type t2 ON v.lookup_type_id = t2.lookup_type_id
+    WHERE t2.lookup_type_cd = 160 AND v.lookup_value_cd = 110
+  );
+
+INSERT INTO mr_lookup_value (lookup_type_id, lookup_value_cd, lookup_value_nm, seq)
+SELECT t.lookup_type_id, 120, '매주', 3
+FROM mr_lookup_type t
+WHERE t.lookup_type_cd = 160
+  AND NOT EXISTS (
+    SELECT 1 FROM mr_lookup_value v
+    INNER JOIN mr_lookup_type t2 ON v.lookup_type_id = t2.lookup_type_id
+    WHERE t2.lookup_type_cd = 160 AND v.lookup_value_cd = 120
+  );
+
+INSERT INTO mr_lookup_value (lookup_type_id, lookup_value_cd, lookup_value_nm, seq)
+SELECT t.lookup_type_id, 130, '매월', 4
+FROM mr_lookup_type t
+WHERE t.lookup_type_cd = 160
+  AND NOT EXISTS (
+    SELECT 1 FROM mr_lookup_value v
+    INNER JOIN mr_lookup_type t2 ON v.lookup_type_id = t2.lookup_type_id
+    WHERE t2.lookup_type_cd = 160 AND v.lookup_value_cd = 130
+  );
+
+INSERT INTO mr_lookup_value (lookup_type_id, lookup_value_cd, lookup_value_nm, seq)
+SELECT t.lookup_type_id, 150, '사용자 설정', 5
+FROM mr_lookup_type t
+WHERE t.lookup_type_cd = 160
+  AND NOT EXISTS (
+    SELECT 1 FROM mr_lookup_value v
+    INNER JOIN mr_lookup_type t2 ON v.lookup_type_id = t2.lookup_type_id
+    WHERE t2.lookup_type_cd = 160 AND v.lookup_value_cd = 150
+  );
+
+-- ------------------------------------------------------------
+-- 반복 주기 단위 (lookup_type_cd 170) — 반복 사용자 설정 모달 드롭다운
+-- current_date between start_ymd and end_ymd 로 유효한 값만 조회
+-- ------------------------------------------------------------
+INSERT INTO mr_lookup_type (lookup_type_cd, lookup_type_nm)
+SELECT 170, '반복주기'
+WHERE NOT EXISTS (SELECT 1 FROM mr_lookup_type WHERE lookup_type_cd = 170);
+
+INSERT INTO mr_lookup_value (lookup_type_id, lookup_value_cd, lookup_value_nm, seq)
+SELECT t.lookup_type_id, 1, '일', 1
+FROM mr_lookup_type t
+WHERE t.lookup_type_cd = 170
+  AND NOT EXISTS (
+    SELECT 1 FROM mr_lookup_value v
+    INNER JOIN mr_lookup_type t2 ON v.lookup_type_id = t2.lookup_type_id
+    WHERE t2.lookup_type_cd = 170 AND v.lookup_value_cd = 1
+  );
+
+INSERT INTO mr_lookup_value (lookup_type_id, lookup_value_cd, lookup_value_nm, seq)
+SELECT t.lookup_type_id, 2, '주', 2
+FROM mr_lookup_type t
+WHERE t.lookup_type_cd = 170
+  AND NOT EXISTS (
+    SELECT 1 FROM mr_lookup_value v
+    INNER JOIN mr_lookup_type t2 ON v.lookup_type_id = t2.lookup_type_id
+    WHERE t2.lookup_type_cd = 170 AND v.lookup_value_cd = 2
+  );
+
+INSERT INTO mr_lookup_value (lookup_type_id, lookup_value_cd, lookup_value_nm, seq)
+SELECT t.lookup_type_id, 3, '월', 3
+FROM mr_lookup_type t
+WHERE t.lookup_type_cd = 170
+  AND NOT EXISTS (
+    SELECT 1 FROM mr_lookup_value v
+    INNER JOIN mr_lookup_type t2 ON v.lookup_type_id = t2.lookup_type_id
+    WHERE t2.lookup_type_cd = 170 AND v.lookup_value_cd = 3
+  );
+
+-- ------------------------------------------------------------
+-- 결재상태 (lookup_type_cd 180) — 예약현황 필터·그리드
+-- 100=신청, 110=승인, 120=반려
+-- ------------------------------------------------------------
+INSERT INTO mr_lookup_type (lookup_type_cd, lookup_type_nm)
+SELECT 180, '결재상태'
+WHERE NOT EXISTS (SELECT 1 FROM mr_lookup_type WHERE lookup_type_cd = 180);
+
+INSERT INTO mr_lookup_value (lookup_type_id, lookup_value_cd, lookup_value_nm, seq)
+SELECT t.lookup_type_id, 100, '신청', 1
+FROM mr_lookup_type t
+WHERE t.lookup_type_cd = 180
+  AND NOT EXISTS (
+    SELECT 1 FROM mr_lookup_value v
+    INNER JOIN mr_lookup_type t2 ON v.lookup_type_id = t2.lookup_type_id
+    WHERE t2.lookup_type_cd = 180 AND v.lookup_value_cd = 100
+  );
+INSERT INTO mr_lookup_value (lookup_type_id, lookup_value_cd, lookup_value_nm, seq)
+SELECT t.lookup_type_id, 110, '승인', 2
+FROM mr_lookup_type t
+WHERE t.lookup_type_cd = 180
+  AND NOT EXISTS (
+    SELECT 1 FROM mr_lookup_value v
+    INNER JOIN mr_lookup_type t2 ON v.lookup_type_id = t2.lookup_type_id
+    WHERE t2.lookup_type_cd = 180 AND v.lookup_value_cd = 110
+  );
+INSERT INTO mr_lookup_value (lookup_type_id, lookup_value_cd, lookup_value_nm, seq)
+SELECT t.lookup_type_id, 120, '반려', 3
+FROM mr_lookup_type t
+WHERE t.lookup_type_cd = 180
+  AND NOT EXISTS (
+    SELECT 1 FROM mr_lookup_value v
+    INNER JOIN mr_lookup_type t2 ON v.lookup_type_id = t2.lookup_type_id
+    WHERE t2.lookup_type_cd = 180 AND v.lookup_value_cd = 120
+  );

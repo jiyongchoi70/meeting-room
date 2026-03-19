@@ -250,6 +250,33 @@
   color: #202124;
 }
 
+/* 사이드바 회의실 필터 */
+.sidebar-filter {
+  margin-top: 16px;
+}
+.sidebar-filter label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #202124;
+  margin-bottom: 6px;
+}
+.sidebar-filter select {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 0.875rem;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  background: #fff;
+  color: #202124;
+  cursor: pointer;
+}
+.sidebar-filter select:hover,
+.sidebar-filter select:focus {
+  border-color: #1a73e8;
+  outline: none;
+}
+
 /* Main content */
 .main-content {
   flex: 1;
@@ -484,32 +511,45 @@
   display: inline;
 }
 
-/* 주/일 뷰: 스크롤 필요할 때만 스크롤바 표시 (인라인 overflow: scroll 덮어씀) → 화살표도 필요 시에만 */
-.main-calendar-wrap .fc-scroller {
+/* ▼ 드래그 드롭 수정 ▼
+   fc-scroller-liquid: height:'auto' 환경(월 보기)에서 height:100% → 실제 0px 됨.
+   FullCalendar 드래그의 isWithinClipping(cursor) 체크가 항상 실패 → eventDrop 미발화.
+   해결: 모든 fc-scroller-liquid를 overflow:visible(clipping parent 제외)로 설정 후
+   주/일(timeGrid)에서만 auto로 복원 */
+.main-calendar-wrap .fc-scroller-liquid {
+  overflow: visible !important;
+}
+.main-calendar-wrap .fc-timegrid .fc-scroller-liquid {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* 주/일 뷰 일반 스크롤러 */
+.main-calendar-wrap .fc-timegrid .fc-scroller {
   overflow-y: auto !important;
   overflow-x: hidden !important;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
 }
 /* WebKit: 스크롤바 버튼(위·아래 화살표) 완전 제거 - 트랙과 썸만 사용 */
-.main-calendar-wrap .fc-scroller::-webkit-scrollbar {
+.main-calendar-wrap .fc-timegrid .fc-scroller::-webkit-scrollbar {
   width: 10px;
 }
-.main-calendar-wrap .fc-scroller::-webkit-scrollbar-track {
+.main-calendar-wrap .fc-timegrid .fc-scroller::-webkit-scrollbar-track {
   margin: 0;
   background: #f1f3f4;
   border-radius: 4px;
 }
-.main-calendar-wrap .fc-scroller::-webkit-scrollbar-thumb {
+.main-calendar-wrap .fc-timegrid .fc-scroller::-webkit-scrollbar-thumb {
   background: #dadce0;
   border-radius: 4px;
 }
 /* 화살표 버튼 제거 (모든 WebKit 버튼 선택자) */
-.main-calendar-wrap .fc-scroller::-webkit-scrollbar-button,
-.main-calendar-wrap .fc-scroller::-webkit-scrollbar-button:vertical,
-.main-calendar-wrap .fc-scroller::-webkit-scrollbar-button:vertical:decrement,
-.main-calendar-wrap .fc-scroller::-webkit-scrollbar-button:vertical:increment,
-.main-calendar-wrap .fc-scroller::-webkit-scrollbar-button:single-button {
+.main-calendar-wrap .fc-timegrid .fc-scroller::-webkit-scrollbar-button,
+.main-calendar-wrap .fc-timegrid .fc-scroller::-webkit-scrollbar-button:vertical,
+.main-calendar-wrap .fc-timegrid .fc-scroller::-webkit-scrollbar-button:vertical:decrement,
+.main-calendar-wrap .fc-timegrid .fc-scroller::-webkit-scrollbar-button:vertical:increment,
+.main-calendar-wrap .fc-timegrid .fc-scroller::-webkit-scrollbar-button:single-button {
   display: none !important;
   visibility: hidden !important;
   height: 0 !important;
@@ -572,9 +612,42 @@
   padding: 20px 20px 0;
 }
 
+.modal-header-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .modal-header h2 {
   font-size: 1.25rem;
   font-weight: 600;
+  margin: 0;
+}
+
+.reservation-modal .reservation-status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border: 1px solid #5f6368;
+  border-radius: 4px;
+  color: #202124;
+  background: #fff;
+}
+
+.reservation-modal .reservation-status-badge--applied {
+  border: 1px solid #1a73e8;
+  color: #1967d2;
+}
+
+.reservation-modal .reservation-status-badge--rejected {
+  border: 1px solid #d93025;
+  color: #c5221f;
+}
+
+.reservation-modal .reservation-status-badge--approved {
+  border: 1px solid #1a237e;
+  color: #1a237e;
 }
 
 .modal-close {
@@ -637,11 +710,97 @@
   font-weight: 400 !important;
 }
 
+/* 연·월·일 3칸 날짜 입력 */
+.date-triplet {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+.date-triplet .form-input {
+  width: 4ch;
+  text-align: center;
+  padding: 10px 6px;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+}
+.date-triplet .form-input:first-of-type {
+  width: 5ch;
+}
+.date-triplet-sep {
+  color: #5f6368;
+  user-select: none;
+}
+.date-triplet .form-input--invalid {
+  border-color: #d93025;
+  color: #d93025;
+}
+
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
   border-color: #1a73e8;
   box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.2);
+}
+
+/* 종료일·종료시간이 시작보다 작거나 같을 때 빨간색 표시 */
+.reservation-modal .form-group--end-invalid label,
+.reservation-modal .form-group--end-invalid input,
+.reservation-modal .form-group--end-invalid select {
+  color: #d93025;
+  border-color: #d93025;
+}
+.reservation-modal .form-group--end-invalid input:focus,
+.reservation-modal .form-group--end-invalid select:focus {
+  border-color: #d93025;
+  box-shadow: 0 0 0 2px rgba(217, 48, 37, 0.2);
+}
+
+.reservation-modal .form-readonly {
+  min-height: 30px;
+  padding: 4px 8px;
+  font-size: 0.9375rem;
+  color: #202124;
+  display: flex;
+  align-items: center;
+}
+.reservation-modal .form-readonly--inline {
+  min-height: 0;
+  padding: 0;
+  display: inline;
+}
+
+.reservation-modal .form-group--booker-info {
+  margin-top: -4px;
+  margin-bottom:  4px;
+}
+
+.delete-recurring-modal .modal-body {
+  min-width: 320px;
+}
+.delete-recurring-options .radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  font-size: 0.9375rem;
+}
+.delete-recurring-options .radio-label:last-child {
+  margin-bottom: 0;
+}
+
+.reject-reason-modal .modal-body {
+  min-width: 360px;
+}
+.reject-reason-modal .reject-comment-textarea {
+  width: 100%;
+  min-width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
 }
 
 .form-row {
@@ -663,6 +822,116 @@
 .checkbox-label input {
   width: 18px;
   height: 18px;
+}
+
+.form-group--row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* 날짜 입력 + "일 까지"를 한 묶음으로 매주 드롭다운과 같은 행에 배치 */
+.form-group--row .form-recurrence-end-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.form-group--row .form-input-recurrence {
+  width: auto;
+  min-width: 120px;
+  padding: 8px 12px;
+  font-size: 0.9375rem;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+}
+
+.form-group--row .form-input-date {
+  width: auto;
+  max-width: 132px;
+  min-width: 120px;
+  padding: 8px 10px;
+  font-size: 0.9375rem;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+.form-group--row .form-label-inline {
+  font-size: 0.9375rem;
+  color: #5f6368;
+  white-space: nowrap;
+}
+
+.form-group--row .form-error-inline {
+  font-size: 0.875rem;
+  color: #d93025;
+}
+
+.form-group--row .form-error-inline--full {
+  flex-basis: 100%;
+}
+
+/* 회의실 예약: 사용자 설정 인라인 (주기 숫자·단위, 다음 요일에 반복, 일 까지) */
+.form-group--row .recurrence-inline-cycle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.form-group--row .recurrence-inline-cycle .recurrence-cycle-number {
+  width: 80px !important;
+  min-width: 80px !important;
+  max-width: 80px !important;
+  padding: 10px 4px !important;
+  box-sizing: border-box !important;
+}
+.form-group--row .recurrence-inline-cycle .recurrence-cycle-unit {
+  width: 133px !important;
+  min-width: 133px !important;
+  padding: 10px 10px !important;
+  box-sizing: border-box !important;
+}
+.form-group--row .form-group--recurrence-days {
+  flex-basis: 100%;
+  width: 100%;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+.form-group--row .form-group--recurrence-days .form-label-inline {
+  display: block;
+  margin-bottom: 6px;
+}
+.form-group--row .form-group--recurrence-days .recurrence-days-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.form-group--row .form-group--recurrence-days .recurrence-monthly-block {
+  padding: 0;
+  background: transparent;
+}
+.form-group--row .form-group--recurrence-days .recurrence-monthly-condition {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+.form-group--row .form-group--recurrence-days .recurrence-monthly-condition--text .recurrence-monthly-text {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #202124;
+}
+.form-group--row .form-group--recurrence-days .recurrence-monthly-ordinal,
+.form-group--row .form-group--recurrence-days .recurrence-monthly-weekday {
+  width: auto;
+  min-width: 90px;
+  padding: 8px 10px;
 }
 
 .modal-actions {
@@ -697,6 +966,127 @@
 .modal-actions button.btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.modal-actions button.btn-danger {
+  background: #fff;
+  border: 1px solid #d93025;
+  color: #c5221f;
+}
+
+.modal-actions button.btn-danger:hover:not(:disabled) {
+  background: #fce8e6;
+}
+
+/* 반복 사용자 설정 모달 (lookup 170 주기, 요일 다중 선택) */
+.recurrence-custom-modal-overlay {
+  z-index: 100001;
+}
+.recurrence-custom-modal {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 400px;
+  padding: 0;
+}
+.recurrence-custom-modal-header {
+  padding: 20px 20px 12px;
+  border-bottom: none;
+}
+.recurrence-custom-modal-header h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #202124;
+  margin: 0;
+}
+.recurrence-custom-modal-body {
+  padding: 16px 20px;
+}
+.recurrence-custom-modal-body .form-group {
+  margin-bottom: 18px;
+}
+.recurrence-custom-modal-body .form-group:last-child {
+  margin-bottom: 0;
+}
+.recurrence-cycle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.recurrence-cycle-number {
+  width: 26px;
+  padding: 10px 4px;
+  font-size: 0.9375rem;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  text-align: center;
+  box-sizing: border-box;
+}
+.recurrence-cycle-unit {
+  width: 88px;
+  min-width: 88px;
+  padding: 10px 10px;
+  font-size: 0.9375rem;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+.recurrence-days-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.recurrence-day-btn {
+  min-width: 44px;
+  padding: 10px 14px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #202124;
+  background: #fff;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.recurrence-day-btn:hover {
+  background: #f1f3f4;
+  border-color: #bdc1c6;
+}
+.recurrence-day-btn--selected {
+  background: #5f6368;
+  border-color: #5f6368;
+  color: #fff;
+}
+.recurrence-day-btn--selected:hover {
+  background: #4a4d52;
+  border-color: #4a4d52;
+  color: #fff;
+}
+.recurrence-custom-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 20px 20px;
+  border-top: 1px solid #e0e0e0;
+}
+.recurrence-custom-modal-actions button {
+  padding: 10px 20px;
+  font-size: 0.9375rem;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid #dadce0;
+  background: #fff;
+  color: #202124;
+}
+.recurrence-custom-confirm-btn {
+  background: #f9ab00 !important;
+  border-color: #f9ab00 !important;
+  color: #202124 !important;
+}
+.recurrence-custom-confirm-btn:hover {
+  background: #e89c00 !important;
+  border-color: #e89c00 !important;
 }
 
 /* Admin page */

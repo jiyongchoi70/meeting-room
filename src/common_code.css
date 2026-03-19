@@ -88,7 +88,8 @@
 #masterGrid,
 #detailGrid,
 #usersGrid,
-#roomsGrid {
+#roomsGrid,
+#reservationsGrid {
     width: 100%;
     height: 500px;
     min-height: 300px;
@@ -100,7 +101,8 @@
 #masterGrid > div,
 #detailGrid > div,
 #usersGrid > div,
-#roomsGrid > div {
+#roomsGrid > div,
+#reservationsGrid > div {
     height: 100% !important;
     min-height: 0;
 }
@@ -109,14 +111,16 @@
 #masterGrid .ag-header,
 #detailGrid .ag-header,
 #usersGrid .ag-header,
-#roomsGrid .ag-header {
+#roomsGrid .ag-header,
+#reservationsGrid .ag-header {
     background-color: #f8f9fa;
 }
 
 #masterGrid .ag-header-cell,
 #detailGrid .ag-header-cell,
 #usersGrid .ag-header-cell,
-#roomsGrid .ag-header-cell {
+#roomsGrid .ag-header-cell,
+#reservationsGrid .ag-header-cell {
     background-color: #f8f9fa;
     font-size: 14px;
 }
@@ -125,7 +129,8 @@
 #masterGrid .ag-cell,
 #detailGrid .ag-cell,
 #usersGrid .ag-cell,
-#roomsGrid .ag-cell {
+#roomsGrid .ag-cell,
+#reservationsGrid .ag-cell {
     display: flex;
     align-items: center;
     font-size: 14px;
@@ -135,14 +140,16 @@
 #masterGrid .ag-row:nth-child(even),
 #detailGrid .ag-row:nth-child(even),
 #usersGrid .ag-row:nth-child(even),
-#roomsGrid .ag-row:nth-child(even) {
+#roomsGrid .ag-row:nth-child(even),
+#reservationsGrid .ag-row:nth-child(even) {
     background-color: #fcfcfc;
 }
 
 #masterGrid .ag-row:nth-child(even) .ag-cell,
 #detailGrid .ag-row:nth-child(even) .ag-cell,
 #usersGrid .ag-row:nth-child(even) .ag-cell,
-#roomsGrid .ag-row:nth-child(even) .ag-cell {
+#roomsGrid .ag-row:nth-child(even) .ag-cell,
+#reservationsGrid .ag-row:nth-child(even) .ag-cell {
     background-color: #fcfcfc;
 }
 
@@ -175,13 +182,15 @@
 /* 중분류/사용자 hover: 대분류와 동일한 배경색 */
 #detailGrid .ag-row:hover,
 #usersGrid .ag-row:hover,
-#roomsGrid .ag-row:hover {
+#roomsGrid .ag-row:hover,
+#reservationsGrid .ag-row:hover {
     background-color: #deeeff;
 }
 
 /* 사용자 그리드 페이지네이션 (이미지와 동일: Page Size, 1 to N of N, 첫/이전/다음/마지막) */
 #usersGrid .ag-paging-panel,
-#roomsGrid .ag-paging-panel {
+#roomsGrid .ag-paging-panel,
+#reservationsGrid .ag-paging-panel {
     display: flex;
     align-items: center;
     justify-content: flex-end;
@@ -194,14 +203,16 @@
 }
 
 #usersGrid .ag-paging-page-summary-panel,
-#roomsGrid .ag-paging-page-summary-panel {
+#roomsGrid .ag-paging-page-summary-panel,
+#reservationsGrid .ag-paging-page-summary-panel {
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
 #usersGrid .ag-paging-row-summary-panel,
-#roomsGrid .ag-paging-row-summary-panel {
+#roomsGrid .ag-paging-row-summary-panel,
+#reservationsGrid .ag-paging-row-summary-panel {
     margin-right: 8px;
 }
 
@@ -236,6 +247,111 @@
 .rooms-section .search-form input.search-form-input-narrow {
     width: 240px;
     min-width: 240px;
+}
+
+/* 예약현황 */
+.reservations-section .search-form--reservations {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.reservations-section .reservations-date-range-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.reservations-section .reservations-date-range-inputs {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.reservations-section .reservations-date-range-inputs input[type="date"] {
+    min-width: 120px;
+}
+
+.reservations-section .reservations-date-sep {
+    color: #374151;
+    font-weight: 500;
+}
+
+.reservations-section .reservations-status-select {
+    width: 90px;
+    min-width: 90px;
+}
+
+.reservations-section .reservations-room-select {
+    min-width: 260px;
+    width: auto;
+}
+
+.reservations-section .search-form-right-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+}
+
+.reservations-section .reservations-grid-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.85);
+    z-index: 10;
+    font-size: 14px;
+    color: #374151;
+}
+
+.reservations-section .batch-approve-button {
+    padding: 6px 14px;
+    background-color: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.reservations-section .batch-approve-button:hover {
+    background-color: #1e40af;
+}
+
+.reservations-section .batch-reject-button {
+    padding: 6px 14px;
+    background-color: #dc2626;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.reservations-section .batch-reject-button:hover {
+    background-color: #b91c1c;
+}
+
+.reservations-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 24px;
+    background: #1f2937;
+    color: #fff;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 10000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 /* 승인자 등록 팝업 */

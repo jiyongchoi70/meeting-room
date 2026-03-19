@@ -63,6 +63,53 @@ function DeleteCellRenderer(props: { data?: LookupValue; onDelete?: (row: Lookup
   )
 }
 
+/** type="date" value로 쓸 수 있는지 검사 (빈 문자열 또는 yyyy-MM-dd) */
+function isValidYyyyMmDd(str: string): boolean {
+  if (str === '') return true
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return false
+  const d = new Date(str)
+  return !Number.isNaN(d.getTime())
+}
+
+/**
+ * 년도 4자리, 월 2자리, 일 2자리 제어.
+ * - 대시 없는 8자리 숫자(YYYYMMDD) → yyyy-MM-dd 로 변환
+ * - 10자 초과 시 10자리만 사용
+ * - 연도 9999 초과 시 9999-12-31 로 보정
+ */
+function validateDateInput(value: string): string {
+  if (!value || !value.trim()) return value
+  let dateValue = value.trim()
+  if (dateValue.length >= 5 && dateValue.indexOf('-') === -1) {
+    const digits = dateValue.replace(/\D/g, '')
+    if (digits.length >= 8) {
+      const year = digits.substring(0, 4)
+      const month = digits.substring(4, 6)
+      const day = digits.substring(6, 8)
+      if (/^\d{4}$/.test(year) && /^\d{2}$/.test(month) && /^\d{2}$/.test(day)) {
+        dateValue = `${year}-${month}-${day}`
+      }
+    }
+  }
+  if (dateValue.length > 10) dateValue = dateValue.substring(0, 10)
+  if (dateValue && /^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+    const d = new Date(dateValue)
+    if (!Number.isNaN(d.getTime()) && d.getFullYear() > 9999)
+      dateValue = '9999-12-31'
+  }
+  return dateValue
+}
+
+/** 월 01 입력 시 브라우저가 10으로 보내는 경우 보정. 이전 값이 'yyyy-0'이고 현재가 'yyyy-10' 또는 'yyyy-10-01'이면 'yyyy-01'로 간주 */
+function correctMonth01From10(currentVal: string, prevVal: string | null): string {
+  if (!currentVal || !prevVal) return currentVal
+  const prevTrim = prevVal.trim()
+  const m = currentVal.match(/^(\d{4})-10(-01)?$/)
+  if (!m) return currentVal
+  if (/^\d{4}-0$/.test(prevTrim)) return m[2] ? `${m[1]}-01-01` : `${m[1]}-01`
+  return currentVal
+}
+
 export default function CommonCodeSection() {
   const [types, setTypes] = useState<LookupType[]>([])
   const [values, setValues] = useState<LookupValue[]>([])
@@ -438,6 +485,10 @@ function ValueFormButton({
   const [seq, setSeq] = useState('')
   const [start_ymd, setStart_ymd] = useState('')
   const [end_ymd, setEnd_ymd] = useState('')
+  const [startDateInput, setStartDateInput] = useState<string | null>(null)
+  const [endDateInput, setEndDateInput] = useState<string | null>(null)
+  const prevStartDateInputRef = useRef<string | null>(null)
+  const prevEndDateInputRef = useRef<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [dateError, setDateError] = useState<string | null>(null)
   const isEdit = Boolean(edit)
@@ -448,8 +499,10 @@ function ValueFormButton({
       setLookup_value_nm(edit.lookup_value_nm)
       setRemark(edit.remark ?? '')
       setSeq(String(edit.seq ?? ''))
-      setStart_ymd(normalizeDateTo4DigitYear(fromYmd(edit.start_ymd)))
-      setEnd_ymd(normalizeDateTo4DigitYear(fromYmd(edit.end_ymd)))
+      const startStr = normalizeDateTo4DigitYear(fromYmd(edit.start_ymd)) || fromYmd(edit.start_ymd)
+      const endStr = normalizeDateTo4DigitYear(fromYmd(edit.end_ymd)) || fromYmd(edit.end_ymd)
+      setStart_ymd(startStr || '')
+      setEnd_ymd(endStr || '')
     } else {
       setLookup_value_nm('')
       setRemark('')
@@ -457,6 +510,10 @@ function ValueFormButton({
       setStart_ymd('')
       setEnd_ymd('')
     }
+    setStartDateInput(null)
+    setEndDateInput(null)
+    prevStartDateInputRef.current = null
+    prevEndDateInputRef.current = null
     setDateError(null)
     setOpen(true)
   }
@@ -524,11 +581,91 @@ function ValueFormButton({
                   </div>
                   <div className="form-group">
                     <label htmlFor="value-start">시작일 <span className="required">*</span></label>
-                    <input id="value-start" type="date" value={start_ymd} onChange={(e) => { const next = normalizeDateTo4DigitYear(e.target.value) || e.target.value; setStart_ymd(next); setDateError(null); }} className="modal-input" required min="1900-01-01" max="9999-12-31" />
+                    <input
+                      id="value-start"
+                      type="date"
+                      value={
+                        startDateInput !== null &&
+                        startDateInput !== '' &&
+                        isValidYyyyMmDd(startDateInput)
+                          ? startDateInput
+                          : start_ymd || ''
+                      }
+                      onChange={(e) => {
+                        let val = validateDateInput(e.target.value)
+                        val = correctMonth01From10(val, prevStartDateInputRef.current)
+                        prevStartDateInputRef.current = val
+                        setStartDateInput(val)
+                        let next = normalizeDateTo4DigitYear(val) || val
+                        if (val && /^\d{4}-01$/.test(val)) next = val + '-01'
+                        if (next && /^\d{4}-\d{2}-\d{2}$/.test(next)) {
+                          setStart_ymd(next)
+                          setStartDateInput(null)
+                          prevStartDateInputRef.current = null
+                        }
+                        setDateError(null)
+                      }}
+                      onBlur={() => {
+                        if (startDateInput !== null && startDateInput !== '') {
+                          let val = validateDateInput(startDateInput)
+                          val = correctMonth01From10(val, prevStartDateInputRef.current)
+                          let next = normalizeDateTo4DigitYear(val) || val
+                          if (val && /^\d{4}-01$/.test(val)) next = val + '-01'
+                          if (next && /^\d{4}-\d{2}-\d{2}$/.test(next)) setStart_ymd(next)
+                          setStartDateInput(null)
+                          prevStartDateInputRef.current = null
+                        }
+                        setDateError(null)
+                      }}
+                      className="modal-input"
+                      required
+                      min="1900-01-01"
+                      max="9999-12-31"
+                    />
                   </div>
                   <div className="form-group">
                     <label htmlFor="value-end">종료일 <span className="required">*</span></label>
-                    <input id="value-end" type="date" value={end_ymd} onChange={(e) => { const next = normalizeDateTo4DigitYear(e.target.value) || e.target.value; setEnd_ymd(next); setDateError(null); }} className="modal-input" required min="1900-01-01" max="9999-12-31" />
+                    <input
+                      id="value-end"
+                      type="date"
+                      value={
+                        endDateInput !== null &&
+                        endDateInput !== '' &&
+                        isValidYyyyMmDd(endDateInput)
+                          ? endDateInput
+                          : end_ymd || ''
+                      }
+                      onChange={(e) => {
+                        let val = validateDateInput(e.target.value)
+                        val = correctMonth01From10(val, prevEndDateInputRef.current)
+                        prevEndDateInputRef.current = val
+                        setEndDateInput(val)
+                        let next = normalizeDateTo4DigitYear(val) || val
+                        if (val && /^\d{4}-01$/.test(val)) next = val + '-01'
+                        if (next && /^\d{4}-\d{2}-\d{2}$/.test(next)) {
+                          setEnd_ymd(next)
+                          setEndDateInput(null)
+                          prevEndDateInputRef.current = null
+                        }
+                        setDateError(null)
+                      }}
+                      onBlur={() => {
+                        if (endDateInput !== null && endDateInput !== '') {
+                          let val = validateDateInput(endDateInput)
+                          val = correctMonth01From10(val, prevEndDateInputRef.current)
+                          let next = normalizeDateTo4DigitYear(val) || val
+                          if (val && /^\d{4}-01$/.test(val)) next = val + '-01'
+                          if (next && /^\d{4}-\d{2}-\d{2}$/.test(next)) setEnd_ymd(next)
+                          setEndDateInput(null)
+                          prevEndDateInputRef.current = null
+                        }
+                        setDateError(null)
+                      }}
+                      className="modal-input"
+                      required
+                      min="1900-01-01"
+                      max="9999-12-31"
+                    />
                   </div>
                   {dateError && <p className="common-code-form-error" role="alert">{dateError}</p>}
                 </div>
