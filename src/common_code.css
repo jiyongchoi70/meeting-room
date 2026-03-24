@@ -420,6 +420,34 @@
     border-radius: 6px;
 }
 
+/* 승인자 등록 팝업 푸터: 왼쪽 안내 문구 + 오른쪽 버튼 */
+.approver-popup-footer {
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.approver-popup-footer-note {
+    margin: 0;
+    font-size: 14px;
+    color: #2563eb;
+    flex: 1;
+    min-width: 200px;
+    line-height: 1.4;
+}
+
+.approver-popup-footer-actions {
+    display: flex;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+/* 승인자 등록: join≠110 사용자 행 (선택 불가) */
+.approver-row--ineligible td {
+    color: #9ca3af;
+}
+
 .modal {
     display: none;
     position: fixed;

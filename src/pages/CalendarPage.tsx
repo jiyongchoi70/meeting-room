@@ -5,7 +5,11 @@ import MiniCalendar from '../components/MiniCalendar'
 import ReservationModal from '../components/ReservationModal'
 import { useAuth } from '../hooks/useAuth'
 import { fetchMrUserByUid } from '../api/users'
-import { fetchRoomsForReservation, fetchApproversByRoomIds } from '../api/rooms'
+import {
+  fetchRoomsForReservation,
+  fetchApproversByRoomIds,
+  fetchUserHasApproverRecord,
+} from '../api/rooms'
 import {
   insertReservation,
   updateReservation,
@@ -26,11 +30,11 @@ import {
 import type { ReservationEvent, RoomForReservation } from '../types'
 import '../App.css'
 
-/** mr_users.user_type: 110, 120 일 때만 관리자 메뉴 노출 */
-const ADMIN_USER_TYPES = [110, 120]
 /** mr_users.join: 110 일 때만 회의실 예약(만들기·수정·드래그) 가능 */
 const RESERVATION_ALLOWED_JOIN = 110
-/** mr_users.user_type: 110 = 관리자 (예약가능일 검증 생략) */
+/** mr_users.join: 130 일 때는 예약은 불가하나 캘린더에서 예약 클릭 시 조회 전용 모달 허용 */
+const JOIN_VIEW_RESERVATION_DETAIL = 130
+/** mr_users.user_type: 110 = 담당자(관리자). 모달 승인/반려 등에 사용 (120은 관리자 메뉴 미노출) */
 const ADMIN_USER_TYPE = 110
 
 function endDateToYmd(end: Date): string {
@@ -51,8 +55,28 @@ export default function CalendarPage() {
   const { user, signOut } = useAuth()
   const fromLogoutHandled = useRef(false)
   const [mrUser, setMrUser] = useState<{ user_type: number | null; join: number | null } | null>(null)
+  const [userHasApproverRecord, setUserHasApproverRecord] = useState(false)
 
-  /** 로그인 시 해당 사용자의 mr_users 조회 → 관리자 노출(user_type 110/120), 예약 가능(join 110) 판단 */
+  /** 로그인 시 mr_approver에 본인 user_uid 존재 여부 (join=110일 때 관리자 메뉴 조건) */
+  useEffect(() => {
+    if (!user?.id) {
+      setUserHasApproverRecord(false)
+      return
+    }
+    let cancelled = false
+    fetchUserHasApproverRecord(user.id)
+      .then((ok) => {
+        if (!cancelled) setUserHasApproverRecord(ok)
+      })
+      .catch(() => {
+        if (!cancelled) setUserHasApproverRecord(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id])
+
+  /** 로그인 시 해당 사용자의 mr_users 조회 → 예약 가능(join 110) 등 판단 */
   useEffect(() => {
     if (!user?.id) {
       setMrUser(null)
@@ -70,9 +94,25 @@ export default function CalendarPage() {
     return () => { cancelled = true }
   }, [user?.id])
 
-  const showAdmin = Boolean(user && mrUser && mrUser.user_type != null && ADMIN_USER_TYPES.includes(mrUser.user_type))
+  /** 관리자 메뉴: join=110 이고 (user_type=110 또는 mr_approver에 본인 1건 이상) */
+  const showAdmin = Boolean(
+    user &&
+      mrUser &&
+      mrUser.join === RESERVATION_ALLOWED_JOIN &&
+      (mrUser.user_type === ADMIN_USER_TYPE || userHasApproverRecord)
+  )
   /** join === 110 일 때만 예약(만들기·날짜클릭·이벤트클릭·드래그·리사이즈) 가능 */
   const canReserve = Boolean(user && mrUser && mrUser.join === RESERVATION_ALLOWED_JOIN)
+  /** join 110 또는 130: 캘린더에서 예약(이벤트) 클릭 시 상세 모달 열기 */
+  const canOpenEventDetail = Boolean(
+    user &&
+      mrUser &&
+      (mrUser.join === RESERVATION_ALLOWED_JOIN || mrUser.join === JOIN_VIEW_RESERVATION_DETAIL)
+  )
+  /** join 130: 모달은 조회 전용 */
+  const reservationModalViewOnly = Boolean(
+    mrUser && mrUser.join === JOIN_VIEW_RESERVATION_DETAIL
+  )
 
   /** 관리자에서 로그아웃 후 넘어온 경우: 한 번만 signOut 실행 → 로그인 버튼 표시 (중복 실행·네비게이션 스로틀 방지) */
   useEffect(() => {
@@ -138,9 +178,8 @@ export default function CalendarPage() {
     const start = `${first.getFullYear()}-${String(first.getMonth() + 1).padStart(2, '0')}-01`
     const last = new Date(y, m + 3, 0)
     const end = `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`
-    const isAdmin = mrUser.user_type != null && ADMIN_USER_TYPES.includes(mrUser.user_type)
     let cancelled = false
-    fetchReservationsForCalendar(start, end, isAdmin, user.id, selectedRoomId || null)
+    fetchReservationsForCalendar(start, end, false, user.id, selectedRoomId || null)
       .then((list) => {
         if (!cancelled) setEvents(list as ReservationEvent[])
       })
@@ -170,11 +209,11 @@ export default function CalendarPage() {
   }, [canReserve])
 
   const handleEventClick = useCallback((event: ReservationEvent) => {
-    if (!canReserve) return
+    if (!canOpenEventDetail) return
     setModalInitialEvent(event)
     setModalInitialDate(new Date(event.start))
     setModalOpen(true)
-  }, [canReserve])
+  }, [canOpenEventDetail])
 
   const handleEventDrop = useCallback(
     async (event: ReservationEvent, start: Date, end: Date) => {
@@ -454,7 +493,14 @@ export default function CalendarPage() {
           prev.map((e) => {
             const rid = e.extendedProps?.reservationId ?? e.id
             if (ids.includes(rid))
-              return { ...e, extendedProps: { ...e.extendedProps, status: STATUS_REJECTED } }
+              return {
+                ...e,
+                extendedProps: {
+                  ...e.extendedProps,
+                  status: STATUS_REJECTED,
+                  returnComment: returnComment ?? null,
+                },
+              }
             return e
           })
         )
@@ -580,7 +626,8 @@ export default function CalendarPage() {
         initialEvent={modalInitialEvent}
         rooms={roomsForReservation}
         currentUserUid={user?.id}
-        isAdmin={Boolean(mrUser && mrUser.user_type != null && ADMIN_USER_TYPES.includes(mrUser.user_type))}
+        viewOnly={reservationModalViewOnly}
+        isAdmin={Boolean(mrUser && mrUser.user_type === ADMIN_USER_TYPE)}
         isApproverForRoom={Boolean(user?.id && approversForModalRoom.includes(user.id))}
         onClose={() => setModalOpen(false)}
         onSave={handleSaveReservation}

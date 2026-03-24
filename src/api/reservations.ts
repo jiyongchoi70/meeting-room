@@ -213,6 +213,28 @@ export async function fetchReservationList(
         r.status ?? null,
         r.start_ymd ? String(r.start_ymd).slice(0, 10) : null
       ),
+      return_comment: r.return_comment ?? null,
+      repeat_id:
+        r.repeat_id != null && String(r.repeat_id).trim() !== ''
+          ? Number(r.repeat_id)
+          : null,
+      repeat_end_ymd: r.repeat_end_ymd ?? null,
+      repeat_cycle:
+        r.repeat_cycle != null && String(r.repeat_cycle).trim() !== ''
+          ? Number(r.repeat_cycle)
+          : null,
+      repeat_user:
+        r.repeat_user != null && String(r.repeat_user).trim() !== ''
+          ? Number(r.repeat_user)
+          : null,
+      sun_yn: r.sun_yn ?? null,
+      mon_yn: r.mon_yn ?? null,
+      tue_yn: r.tue_yn ?? null,
+      wed_yn: r.wed_yn ?? null,
+      thu_yn: r.thu_yn ?? null,
+      fri_yn: r.fri_yn ?? null,
+      sat_yn: r.sat_yn ?? null,
+      repeat_condition: r.repeat_condition ?? null,
       selectable,
     }
   })
@@ -282,7 +304,7 @@ export async function fetchReservationsForCalendar(
 
   let query = supabase
     .from('mr_reservations')
-    .select('reservation_id, title, start_ymd, end_ymd, room_id, allday_yn, create_user, status, repeat_id, repeat_end_ymd, repeat_group_id')
+    .select('reservation_id, title, start_ymd, end_ymd, room_id, allday_yn, create_user, status, repeat_id, repeat_end_ymd, repeat_group_id, return_comment')
     .gte('start_ymd', startDay)
     .lte('start_ymd', endDay)
     .order('start_ymd', { ascending: true })
@@ -308,6 +330,7 @@ export async function fetchReservationsForCalendar(
     repeat_id: number | null
     repeat_end_ymd: string | null
     repeat_group_id?: string | null
+    return_comment?: string | null
   }>
   const roomIds = [...new Set(list.map((r) => r.room_id))]
   const { data: roomsData } = await supabase
@@ -394,6 +417,7 @@ export async function fetchReservationsForCalendar(
       color: EVENT_COLORS[hashId(r.repeat_group_id ?? r.reservation_id) % EVENT_COLORS.length],
       recurrenceCd: r.repeat_id != null ? Number(r.repeat_id) : undefined,
       recurrenceEndYmd: r.repeat_end_ymd != null && String(r.repeat_end_ymd).trim() !== '' ? String(r.repeat_end_ymd).trim() : undefined,
+      returnComment: r.status === STATUS_REJECTED ? r.return_comment ?? null : undefined,
       ...(r.create_user
         ? (() => {
             const user = userMap.get(r.create_user!)

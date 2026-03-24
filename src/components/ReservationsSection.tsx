@@ -158,6 +158,25 @@ export default function ReservationsSection() {
       : row.allday_yn === 'Y'
         ? `${String(row.end_ymd).slice(0, 10)}T23:59:59.999Z`
         : `${String(row.end_ymd).slice(0, 10)}T00:00:00.000Z`
+    const repeatEndRaw = row.repeat_end_ymd
+    const recurrenceEndYmd =
+      repeatEndRaw != null && String(repeatEndRaw).trim() !== ''
+        ? String(repeatEndRaw).trim()
+        : undefined
+    /** ReservationModal 요일 버튼 순서: WEEKDAY_LABELS = 일~토 */
+    const selectedDaysForModal: boolean[] | undefined =
+      row.repeat_id != null && Number(row.repeat_id) === 150
+        ? [
+            row.sun_yn === 'Y',
+            row.mon_yn === 'Y',
+            row.tue_yn === 'Y',
+            row.wed_yn === 'Y',
+            row.thu_yn === 'Y',
+            row.fri_yn === 'Y',
+            row.sat_yn === 'Y',
+          ]
+        : undefined
+    const hasCustomDay = selectedDaysForModal?.some(Boolean)
     return {
       id: row.reservation_id,
       title: row.title ?? '',
@@ -175,6 +194,22 @@ export default function ReservationsSection() {
         bookerName: row.applicant_name || undefined,
         bookerPositionName: row.applicant_position_nm || undefined,
         bookerPhone: row.applicant_phone || undefined,
+        returnComment: row.return_comment ?? undefined,
+        recurrenceCd:
+          row.repeat_id != null && String(row.repeat_id).trim() !== ''
+            ? Number(row.repeat_id)
+            : undefined,
+        recurrenceEndYmd,
+        cycleNumber:
+          row.repeat_cycle != null && Number(row.repeat_id) === 150
+            ? Math.max(1, Number(row.repeat_cycle))
+            : undefined,
+        cycleUnitCd:
+          row.repeat_user != null && Number(row.repeat_id) === 150
+            ? Number(row.repeat_user)
+            : undefined,
+        selectedDays: hasCustomDay ? selectedDaysForModal : undefined,
+        repeatCondition: row.repeat_condition ?? undefined,
       },
     }
   }, [])
@@ -223,7 +258,12 @@ export default function ReservationsSection() {
       return
     }
     try {
-      await batchUpdateReservationStatus(ids, STATUS_REJECTED, userUid)
+      await batchUpdateReservationStatus(
+        ids,
+        STATUS_REJECTED,
+        userUid,
+        '관리자에게 문의해 주세요.'
+      )
       api?.deselectAll()
       showToast(`${ids.length}건 반려되었습니다.`)
       loadList()

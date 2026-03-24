@@ -34,10 +34,18 @@ export interface ReservationEvent {
     createUser?: string
     /** 결재상태 (110 신청, 120 승인, 130 반려). 반려(130)인 경우 이동 불가 */
     status?: number
+    /** 반려(130) 시 사유 (mr_reservations.return_comment) */
+    returnComment?: string | null
     /** 예약자 표시용: 이름, 직분, 연락처 (모달에서 즉시 표시) */
     bookerName?: string
     bookerPositionName?: string
     bookerPhone?: string
+    /** 사용자 설정 반복(lookup 150): 주기 숫자·단위·요일 (예약현황 등 DB에서 복원) */
+    cycleNumber?: number
+    cycleUnitCd?: number | null
+    /** 요일 순서: 일~토 (ReservationModal WEEKDAY_LABELS와 동일) */
+    selectedDays?: boolean[]
+    repeatCondition?: string | null
   }
 }
 
@@ -149,6 +157,20 @@ export interface ReservationRow {
   repeat_group_id?: string | null
   status: number | null
   status_nm: string
+  return_comment?: string | null
+  /** mr_reservations 반복 설정 (모달·캘린더와 동일하게 표시용) */
+  repeat_id?: number | null
+  repeat_end_ymd?: string | null
+  repeat_cycle?: number | null
+  repeat_user?: number | null
+  sun_yn?: string | null
+  mon_yn?: string | null
+  tue_yn?: string | null
+  wed_yn?: string | null
+  thu_yn?: string | null
+  fri_yn?: string | null
+  sat_yn?: string | null
+  repeat_condition?: string | null
   /** 결재 100 + repeat_cycle null 일 때만 true (일괄승인/반려 선택 가능) */
   selectable: boolean
 }

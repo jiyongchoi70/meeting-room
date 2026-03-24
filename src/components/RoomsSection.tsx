@@ -25,6 +25,12 @@ const LOOKUP_130 = 130 // 직분 (승인자 팝업)
 const LOOKUP_150 = 150 // 예약가능일
 const RESERVATION_FROM_TODAY_CD = 110 // 현재일로부터 N일 (reservation_cnt 사용)
 const RESERVATION_SPECIFIC_DATE_CD = 170 // 특정일 선택 시 코드
+/** mr_users.join: 이 값일 때만 승인자 등록 팝업에서 선택 가능 */
+const APPROVER_ELIGIBLE_JOIN_CD = 110
+
+function canSelectUserAsApprover(u: MrUser): boolean {
+  return u.join === APPROVER_ELIGIBLE_JOIN_CD
+}
 
 function getLookupName(
   options: LookupValue[],
@@ -931,7 +937,12 @@ function ApproverPopup({
   onSave: (userUids: string[]) => void
 }) {
   const [searchName, setSearchName] = useState('')
-  const [selected, setSelected] = useState<string[]>(initialUserUids)
+  const [selected, setSelected] = useState<string[]>(() =>
+    initialUserUids.filter((uid) => {
+      const u = users.find((x) => x.user_uid === uid)
+      return u != null && canSelectUserAsApprover(u)
+    })
+  )
 
   const filteredUsers = useMemo(() => {
     if (!searchName.trim()) return users
@@ -942,7 +953,10 @@ function ApproverPopup({
   }, [users, searchName])
 
   const selectedUsers = useMemo(
-    () => users.filter((u) => selected.includes(u.user_uid)),
+    () =>
+      users.filter(
+        (u) => selected.includes(u.user_uid) && canSelectUserAsApprover(u)
+      ),
     [users, selected]
   )
 
@@ -1027,13 +1041,25 @@ function ApproverPopup({
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredUsers.map((u) => (
-                      <tr key={u.user_uid}>
+                    {filteredUsers.map((u) => {
+                      const canSelect = canSelectUserAsApprover(u)
+                      return (
+                      <tr
+                        key={u.user_uid}
+                        className={canSelect ? undefined : 'approver-row--ineligible'}
+                      >
                         <td>
                           <input
                             type="checkbox"
                             checked={selected.includes(u.user_uid)}
+                            disabled={!canSelect}
+                            title={
+                              canSelect
+                                ? undefined
+                                : '가입(join) 상태가 예약 가능(110)인 사용자만 승인자로 등록할 수 있습니다.'
+                            }
                             onChange={(e) => {
+                              if (!canSelect) return
                               if (e.target.checked) addSelected([u.user_uid])
                               else removeOne(u.user_uid)
                             }}
@@ -1049,7 +1075,7 @@ function ApproverPopup({
                         </td>
                         <td>{formatPhone(u.phone)}</td>
                       </tr>
-                    ))}
+                    )})}
                   </tbody>
                 </table>
               </div>
@@ -1108,17 +1134,28 @@ function ApproverPopup({
             </div>
           </div>
         </div>
-        <div className="modal-footer">
-          <button type="button" className="cancel-button" onClick={onClose}>
-            취소
-          </button>
-          <button
-            type="button"
-            className="save-button"
-            onClick={() => onSave(selected)}
-          >
-            저장
-          </button>
+        <div className="modal-footer approver-popup-footer">
+          <p className="approver-popup-footer-note">
+            ※ 선택은 사용자가 &ldquo;가입&rdquo; 일 때만 가능함
+          </p>
+          <div className="approver-popup-footer-actions">
+            <button type="button" className="cancel-button" onClick={onClose}>
+              취소
+            </button>
+            <button
+              type="button"
+              className="save-button"
+              onClick={() => {
+                const ok = selected.filter((uid) => {
+                  const u = users.find((x) => x.user_uid === uid)
+                  return u != null && canSelectUserAsApprover(u)
+                })
+                onSave(ok)
+              }}
+            >
+              저장
+            </button>
+          </div>
         </div>
       </div>
     </div>

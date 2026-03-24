@@ -114,6 +114,8 @@ interface ReservationModalProps {
   isAdmin?: boolean
   /** 해당 예약의 회의실 승인자 여부. status=110일 때 승인/반려 버튼 노출 조건 */
   isApproverForRoom?: boolean
+  /** true면 예약 조회 전용(저장·삭제·승인/반려 없음). 예: mr_users.join=130 */
+  viewOnly?: boolean
   /** 승인 클릭 시 (reservationId, repeatGroupId?) */
   onApprove?: (reservationId: string, repeatGroupId?: string | null) => void | Promise<void>
   /** 반려 클릭 시 반려 사유 입력 후 (reservationId, repeatGroupId?, returnComment) */
@@ -238,6 +240,7 @@ export default function ReservationModal({
   isApproverForRoom,
   onApprove,
   onReject,
+  viewOnly = false,
 }: ReservationModalProps) {
   const baseDate = initialDate || new Date()
   const [title, setTitle] = useState(initialEvent?.title ?? '')
@@ -458,6 +461,25 @@ export default function ReservationModal({
       setRecurrenceEndError(null)
       // 예약자: 캘린더에서 미리 채워둔 extendedProps가 있으면 즉시 표시(화면 오픈 시 함께 나오도록)
       const ep = initialEvent.extendedProps
+      const loadedRc = ep?.recurrenceCd
+      if (loadedRc != null && Number(loadedRc) === RECURRENCE_CUSTOM_CD) {
+        if (ep?.cycleNumber != null && !Number.isNaN(Number(ep.cycleNumber))) {
+          setCycleNumber(Math.max(1, Number(ep.cycleNumber)))
+        } else {
+          setCycleNumber(1)
+        }
+        if (ep?.cycleUnitCd != null && !Number.isNaN(Number(ep.cycleUnitCd))) {
+          setCycleUnitCd(Number(ep.cycleUnitCd))
+        }
+        if (Array.isArray(ep?.selectedDays) && ep.selectedDays.length === 7) {
+          setSelectedDays(ep.selectedDays.map((v) => !!v))
+        } else {
+          setSelectedDays([false, false, false, false, false, false, false])
+        }
+      } else {
+        setCycleNumber(1)
+        setSelectedDays([false, false, false, false, false, false, false])
+      }
       if (ep?.bookerName != null || ep?.bookerPositionName != null || ep?.bookerPhone != null) {
         setBookerInfo({
           authorName: ep.bookerName ?? '',
@@ -557,6 +579,7 @@ export default function ReservationModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (viewOnly) return
     if (!title.trim()) return
     const room = rooms.find((r) => r.id === roomId)
     if (!room) return
@@ -633,9 +656,12 @@ export default function ReservationModal({
 
   if (!isOpen) return null
 
-  /** 본인이 예약한 것이 아니면 조회 전용(수정 불가) */
-  const isReadOnly =
-    Boolean(initialEvent && currentUserUid && initialEvent.extendedProps?.createUser !== currentUserUid)
+  /** join=130 등 조회 전용, 또는 타인 예약 조회 시 수정 불가 */
+  const isReadOnly = Boolean(
+    initialEvent &&
+      (viewOnly ||
+        (currentUserUid != null && initialEvent.extendedProps?.createUser !== currentUserUid))
+  )
 
   /** 종료일·종료시간이 시작일·시작시간보다 작거나 같으면 true (빨간색 표시용) */
   /** 종료가 시작보다 이전일 때만 빨간색 (종료=시작은 반복 예약 등으로 허용) */
@@ -649,7 +675,13 @@ export default function ReservationModal({
       <div className="reservation-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-header-title-wrap">
-            <h2>{initialEvent ? '회의실 예약 수정' : '회의실 예약'}</h2>
+            <h2>
+              {initialEvent
+                ? viewOnly
+                  ? '예약 조회'
+                  : '회의실 예약 수정'
+                : '회의실 예약'}
+            </h2>
             {(() => {
               const status = initialEvent?.extendedProps?.status
               const label = initialEvent ? getReservationStatusLabel(status) : ''
@@ -1061,6 +1093,14 @@ export default function ReservationModal({
               ))}
             </select>
           </div>
+          {initialEvent?.extendedProps?.status === 130 && (
+            <div className="form-group form-group--reject-comment">
+              <label>반려 사유</label>
+              <div className="form-readonly form-readonly--multiline" role="note">
+                {String(initialEvent.extendedProps.returnComment ?? '').trim() || '—'}
+              </div>
+            </div>
+          )}
           {initialEvent && bookerInfo && (
             <div className="form-group form-group--booker-info">
               <span className="form-readonly form-readonly--inline">
@@ -1071,6 +1111,12 @@ export default function ReservationModal({
             </div>
           )}
           <div className="modal-actions">
+            {viewOnly && initialEvent ? (
+              <button type="button" className="btn-primary" onClick={onClose}>
+                닫기
+              </button>
+            ) : (
+              <>
             {(!initialEvent || (currentUserUid && initialEvent.extendedProps?.createUser === currentUserUid)) && (
               <>
                 <button type="button" onClick={onClose}>
@@ -1143,6 +1189,8 @@ export default function ReservationModal({
                 </button>
               </>
             ) : null}
+              </>
+            )}
           </div>
         </form>
       </div>

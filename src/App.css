@@ -773,6 +773,37 @@
   display: inline;
 }
 
+.reservation-modal .form-group--reject-comment {
+  margin-top: 4px;
+  margin-bottom: 8px;
+}
+
+.reservation-modal .form-group--reject-comment > label {
+  color: #d93025;
+}
+
+.reservation-modal .form-readonly--multiline {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 4.5em;
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  background: #f8f9fa;
+  font-size: 0.9375rem;
+  color: #202124;
+  line-height: 1.45;
+}
+
+.reservation-modal .form-group--reject-comment .form-readonly--multiline {
+  color: #d93025;
+  border-color: rgba(217, 48, 37, 0.45);
+  background: #fef2f2;
+}
+
 .reservation-modal .form-group--booker-info {
   margin-top: -4px;
   margin-bottom:  4px;
@@ -1146,6 +1177,18 @@
   width: 420px;
   border-collapse: collapse;
   background: #fff;
+}
+
+.admin-menu-table--single {
+  width: 100%;
+  max-width: 280px;
+}
+
+.admin-menu-loading {
+  margin: 24px;
+  text-align: center;
+  color: #5f6368;
+  font-size: 0.9375rem;
 }
 
 .admin-menu-th {

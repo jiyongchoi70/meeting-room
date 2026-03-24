@@ -109,6 +109,20 @@ export async function deleteRoom(roomId: string): Promise<void> {
   if (error) throw error
 }
 
+/** 로그인 사용자가 mr_approver에 1건 이상 등록되어 있는지 (관리자 메뉴 노출 조건용) */
+export async function fetchUserHasApproverRecord(userUid: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('mr_approver')
+    .select('approver_id')
+    .eq('user_uid', userUid)
+    .limit(1)
+  if (error) {
+    console.error('[fetchUserHasApproverRecord]', error.message)
+    return false
+  }
+  return (data ?? []).length > 0
+}
+
 /** 회의실별 승인자 목록 조회 (room_id 목록에 대해) */
 export async function fetchApproversByRoomIds(roomIds: string[]): Promise<MrApprover[]> {
   if (roomIds.length === 0) return []
