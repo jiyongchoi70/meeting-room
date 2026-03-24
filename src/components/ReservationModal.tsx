@@ -1145,7 +1145,6 @@ export default function ReservationModal({
                 onClick={() => {
                   const id = initialEvent.extendedProps!.reservationId!
                   const repeatGroupId = initialEvent.extendedProps?.repeatGroupId
-                  const startYmd = initialEvent.extendedProps?.startYmd ?? initialEvent.start.slice(0, 10)
                   if (repeatGroupId && onDeleteRecurring) {
                     setDeleteRecurringScope('this')
                     setDeleteRecurringOpen(true)

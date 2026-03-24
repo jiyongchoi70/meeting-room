@@ -11,10 +11,8 @@ const STATUS_APPROVED = 120
 const STATUS_REJECTED = 130
 const STATUS_COMPLETED = 140
 /** mr_room.confirm_yn 값: 110=승인필요(예약 시 status 110), 120=승인불필요(예약 시 status 140) */
-const CONFIRM_YN_APPLY = 110
 const CONFIRM_YN_AUTO_COMPLETE = 120
 /** mr_room.duplicate_yn: 110=중복 검증 없음, 120=중복 시 저장 불가 */
-const DUPLICATE_YN_NO_CHECK = 110
 const DUPLICATE_YN_CHECK = 120
 /** repeat_id (lookup 160): 120=매일, 130=매주, 140=매월, 150=사용자설정 */
 const REPEAT_DAILY = 120

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { AgGridReact } from 'ag-grid-react'
-import type { ColDef } from 'ag-grid-community'
+import type { ColDef, ICellRendererParams, ITooltipParams, ValueGetterParams } from 'ag-grid-community'
 import 'ag-grid-community/styles/ag-grid.css'
 import 'ag-grid-community/styles/ag-theme-alpine.css'
 import type { ReservationRow, ReservationEvent, RoomForReservation } from '../types'
@@ -421,14 +421,14 @@ export default function ReservationsSection() {
         colId: 'seq',
         headerName: '순서',
         // 병합 기준: 같은 repeat_group_id/reservation_id면 동일 값 → spanRows: true로 셀 병합됨
-        valueGetter: (params) =>
+        valueGetter: (params: ValueGetterParams<ReservationRow>) =>
           params.data
             ? String(params.data.repeat_group_id ?? params.data.reservation_id ?? '')
             : '',
         valueFormatter: () => '', // 값(UUID)은 병합용으로만 쓰고, 화면에는 표시하지 않음
-        cellRenderer: (params) =>
+        cellRenderer: (params: ICellRendererParams<ReservationRow>) =>
           params.node?.rowIndex != null ? String(params.node.rowIndex + 1) : '',
-        tooltipValueGetter: (params) =>
+        tooltipValueGetter: (params: ITooltipParams<ReservationRow>) =>
           params.node?.rowIndex != null ? String(params.node.rowIndex + 1) : '',
         width: 70,
         maxWidth: 80,
@@ -621,13 +621,6 @@ export default function ReservationsSection() {
                 width: 50,
                 maxWidth: 55,
                 suppressHeaderMenuButton: true,
-                // 같은 그룹이면 한 셀로 병합 (값은 표시하지 않음)
-                valueGetter: (params: { data?: ReservationRow }) =>
-                  params.data
-                    ? String(params.data.repeat_group_id ?? params.data.reservation_id ?? '')
-                    : '',
-                valueFormatter: () => '',
-                spanRows: true,
               }}
               onGridReady={(e) => {
                 const cols = e.api.getColumns()

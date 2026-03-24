@@ -436,7 +436,7 @@ export default function CalendarPage() {
       try {
         if (reservationIdForUpdate) {
           const updated = await updateReservation(reservationIdForUpdate, payload)
-          applyAndClose(reservationIdForUpdate, undefined, updated.status)
+          applyAndClose(reservationIdForUpdate, undefined, updated.status ?? undefined)
         } else {
           const result: InsertReservationResult = await insertReservation(payload, user.id)
           const isRepeat = 'isRepeat' in result && result.isRepeat
@@ -446,7 +446,7 @@ export default function CalendarPage() {
             setCalendarRefreshKey((k) => k + 1)
           } else {
             const booker = await fetchBookerInfoByUserUid(user.id).catch(() => undefined)
-            applyAndClose(reservation.reservation_id, booker, reservation.status)
+            applyAndClose(reservation.reservation_id, booker, reservation.status ?? undefined)
           }
         }
       } catch (err) {

@@ -66,3 +66,23 @@ npm run preview
 | `npm run build` | 프로덕션 빌드 |
 | `npm run preview` | 빌드 결과 로컬 미리보기 |
 | `npm run deploy` | 빌드 후 Firebase Hosting 배포 |
+
+---
+
+## Firebase Hosting
+
+- **프로젝트 ID:** `greentree-meeting-room` (`.firebaserc`에 기본값으로 설정됨)
+- **CLI 로그인:** 배포 전 한 번, 아래로 로그인합니다. 브라우저에서 **jiyongchoi70@gmail.com** 계정으로 로그인하세요.
+
+```bash
+npm install -g firebase-tools
+firebase login
+```
+
+- **배포:**
+
+```bash
+npm run deploy
+```
+
+(내부적으로 `npm run build` 후 `firebase deploy` 실행)
