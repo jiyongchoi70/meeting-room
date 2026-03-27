@@ -8,7 +8,12 @@ import type { DateClickArg } from '@fullcalendar/interaction'
 import type { EventResizeDoneArg } from '@fullcalendar/interaction'
 import type { EventInput } from '@fullcalendar/core'
 import type { ReservationEvent } from '../types'
-import { STATUS_REJECTED } from '../api/reservations'
+import { STATUS_APPROVED, STATUS_REJECTED } from '../api/reservations'
+
+function isMoveLockedStatus(status: unknown): boolean {
+  const s = Number(status)
+  return s === STATUS_REJECTED || s === STATUS_APPROVED
+}
 
 /** YYYY-MM-DD → 해당 날짜의 시/분/초를 원본 Date와 동일하게 맞춘 새 Date (로컬 기준) */
 function setDateKeepTime(targetDate: Date, yyyyMmDd: string): Date {
@@ -27,9 +32,22 @@ function setDateKeepTime(targetDate: Date, yyyyMmDd: string): Date {
 interface MainCalendarProps {
   events: ReservationEvent[]
   currentDate: Date
+  /** 캘린더 최초/리마운트 시 유지할 뷰 타입 (dayGridMonth | timeGridWeek | timeGridDay) */
+  initialView?: string
+  /**
+   * true: 월/주/일 버튼 클릭 시 오늘 날짜로 이동 후 해당 뷰 표시.
+   * false: 현재 캘린더가 보고 있는 기준일 유지한 뷰만 전환.
+   */
+  snapToTodayOnViewChange?: boolean
   onDateClick: (date: Date) => void
   onEventClick: (event: ReservationEvent) => void
   onNavigate: (date: Date) => void
+  /** 뷰 전환 시 현재 뷰 타입을 부모에 알림 */
+  onViewChange?: (viewType: string) => void
+  /** 월/주/일 클릭으로 오늘로 점프할 때 부모 state(미니캘린더 등) 동기화 */
+  onSnapToToday?: () => void
+  /** 메인 캘린더 prev/next로 기간 이동 시 (사용자가 표시 기준을 직접 잡음) */
+  onCalendarRangeNavigated?: () => void
   onTodayClick?: () => void
   /** false면 날짜/이벤트 드래그·리사이즈 비활성화 (예: join !== 110 인 사용자) */
   editable?: boolean
@@ -59,9 +77,14 @@ function toCalendarEvents(events: ReservationEvent[]): EventInput[] {
 export default function MainCalendar({
   events,
   currentDate,
+  initialView = 'dayGridMonth',
+  snapToTodayOnViewChange = true,
   onDateClick,
   onEventClick,
   onNavigate,
+  onViewChange,
+  onSnapToToday,
+  onCalendarRangeNavigated,
   onTodayClick,
   editable = true,
   onEventDrop,
@@ -71,7 +94,7 @@ export default function MainCalendar({
 }: MainCalendarProps) {
   const calendarRef = useRef<FullCalendar>(null)
   const calendarEvents = useMemo(() => toCalendarEvents(events), [events])
-  const [currentViewType, setCurrentViewType] = useState<string>('dayGridMonth')
+  const [currentViewType, setCurrentViewType] = useState<string>(initialView)
   const [contentHeight, setContentHeight] = useState<number>(560)
   /** 월 보기 전용: eventDrop가 안 불리므로 mouseup 시 드롭 위치를 직접 찾아 onEventDrop 호출 */
   const monthDragRef = useRef<{
@@ -92,6 +115,10 @@ export default function MainCalendar({
       clearTimeout(id)
     }
   }, [currentDate])
+
+  useEffect(() => {
+    setCurrentViewType(initialView)
+  }, [initialView])
 
   useEffect(() => {
     const calc = () => setContentHeight(Math.max(400, window.innerHeight - 220))
@@ -129,24 +156,49 @@ export default function MainCalendar({
       const rawEnd = arg.event.end
       const end = rawEnd ?? (start ? new Date(start.getTime() + 30 * 60 * 1000) : null)
       const raw = arg.event.extendedProps?.raw as ReservationEvent | undefined
+      if (isMoveLockedStatus(raw?.extendedProps?.status)) {
+        arg.revert()
+        onEventDropNotAllowed?.('승인/반려된 예약은 이동할 수 없습니다.')
+        return
+      }
       if (start && end && raw && onEventDrop) onEventDrop(raw, start, end)
     },
-    [onEventDrop]
+    [onEventDrop, onEventDropNotAllowed]
   )
 
   const handleEventResize = (arg: EventResizeDoneArg) => {
     const start = arg.event.start
     const end = arg.event.end
     const raw = arg.event.extendedProps?.raw as ReservationEvent | undefined
+    if (isMoveLockedStatus(raw?.extendedProps?.status)) {
+      arg.revert()
+      onEventDropNotAllowed?.('승인/반려된 예약은 이동할 수 없습니다.')
+      return
+    }
     if (start && end && raw && onEventResize) onEventResize(raw, start, end)
   }
+
+  const changeMainView = useCallback(
+    (viewType: string) => {
+      const api = calendarRef.current?.getApi()
+      if (!api) return
+      if (snapToTodayOnViewChange) {
+        api.changeView(viewType)
+        api.today()
+        onSnapToToday?.()
+      } else {
+        api.changeView(viewType)
+      }
+    },
+    [snapToTodayOnViewChange, onSnapToToday]
+  )
 
   return (
     <div className="main-calendar-wrap">
       <FullCalendar
         ref={calendarRef}
         plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-        initialView="dayGridMonth"
+        initialView={initialView}
         customButtons={{
           myToday: {
             text: '오늘',
@@ -156,11 +208,41 @@ export default function MainCalendar({
               onTodayClick?.()
             },
           },
+          myPrev: {
+            text: '‹',
+            click: () => {
+              const api = calendarRef.current?.getApi()
+              if (!api) return
+              api.prev()
+              onCalendarRangeNavigated?.()
+            },
+          },
+          myNext: {
+            text: '›',
+            click: () => {
+              const api = calendarRef.current?.getApi()
+              if (!api) return
+              api.next()
+              onCalendarRangeNavigated?.()
+            },
+          },
+          myMonth: {
+            text: '월',
+            click: () => changeMainView('dayGridMonth'),
+          },
+          myWeek: {
+            text: '주',
+            click: () => changeMainView('timeGridWeek'),
+          },
+          myDay: {
+            text: '일',
+            click: () => changeMainView('timeGridDay'),
+          },
         }}
         headerToolbar={{
-          left: 'myToday prev,next',
+          left: 'myToday myPrev,myNext',
           center: 'title',
-          right: 'dayGridMonth,timeGridWeek,timeGridDay',
+          right: 'myMonth,myWeek,myDay',
         }}
         buttonText={{
           month: '월',
@@ -211,8 +293,8 @@ export default function MainCalendar({
             const dayCell = el?.closest?.('.fc-daygrid-day')
             const dataDate = dayCell?.getAttribute?.('data-date') // YYYY-MM-DD
             if (!dataDate || !/^\d{4}-\d{2}-\d{2}$/.test(dataDate)) return
-            if (raw.extendedProps?.status === STATUS_REJECTED) {
-              onEventDropNotAllowed?.('반려된 예약은 이동할 수 없습니다.')
+            if (isMoveLockedStatus(raw.extendedProps?.status)) {
+              onEventDropNotAllowed?.('승인/반려된 예약은 이동할 수 없습니다.')
               return
             }
             const createUser = raw.extendedProps?.createUser
@@ -233,6 +315,7 @@ export default function MainCalendar({
         eventResize={handleEventResize}
         datesSet={({ view }) => {
           setCurrentViewType((prev) => (prev === view.type ? prev : view.type))
+          onViewChange?.(view.type)
           if (view.type === 'dayGridMonth') {
             const d = view.currentStart
             if (d) onNavigate(d)

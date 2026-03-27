@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import MainCalendar from '../components/MainCalendar'
 import MiniCalendar from '../components/MiniCalendar'
-import ReservationModal from '../components/ReservationModal'
+import ReservationModal, { type ReservationSaveData } from '../components/ReservationModal'
 import { useAuth } from '../hooks/useAuth'
 import { fetchMrUserByUid } from '../api/users'
 import {
@@ -14,6 +14,12 @@ import {
   insertReservation,
   updateReservation,
   updateReservationDates,
+  updateReservationDatesThisEvent,
+  updateRepeatGroupDatesAll,
+  replaceRepeatGroupWithPayload,
+  updateReservationThisInSeries,
+  updateReservationThisInstanceReexpand,
+  shouldExpandRepeatPayload,
   deleteReservation,
   deleteReservationThisAndFollowing,
   deleteReservationAllInGroup,
@@ -36,6 +42,15 @@ const RESERVATION_ALLOWED_JOIN = 110
 const JOIN_VIEW_RESERVATION_DETAIL = 130
 /** mr_users.user_type: 110 = 담당자(관리자). 모달 승인/반려 등에 사용 (120은 관리자 메뉴 미노출) */
 const ADMIN_USER_TYPE = 110
+/** 반복 종류 lookup 160: 사용자 설정 */
+const RECURRENCE_CUSTOM_CD = 150
+/** 반복 주기 단위 lookup 170: 주 */
+const REPEAT_USER_WEEK_CD = 110
+
+function isMoveLockedStatus(status: unknown): boolean {
+  const s = Number(status)
+  return s === STATUS_REJECTED || s === STATUS_APPROVED
+}
 
 function endDateToYmd(end: Date): string {
   const y = end.getFullYear()
@@ -131,7 +146,10 @@ export default function CalendarPage() {
   const [events, setEvents] = useState<ReservationEvent[]>([])
   const [roomsForReservation, setRoomsForReservation] = useState<RoomForReservation[]>([])
   const [reservationError, setReservationError] = useState<string | null>(null)
-  const [currentDate, setCurrentDate] = useState(() => new Date(2026, 1, 1))
+  const [currentDate, setCurrentDate] = useState(() => new Date())
+  const [calendarViewType, setCalendarViewType] = useState<'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'>('dayGridMonth')
+  /** 미니캘린더·일 셀 클릭·메인 prev/next 등으로 표시 기준일을 사용자가 잡으면 true → 월/주/일 전환 시 오늘로 점프하지 않음 */
+  const [mainCalendarDateAnchorIsUserSet, setMainCalendarDateAnchorIsUserSet] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalInitialDate, setModalInitialDate] = useState<Date | null>(null)
@@ -140,6 +158,14 @@ export default function CalendarPage() {
   const [monthRevertKey, setMonthRevertKey] = useState(0)
   /** 반복 예약 저장 후 캘린더 재조회 트리거 */
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0)
+  /** 드래그/리사이즈 후 반복 범위 선택(이 일정 / 모든 일정) */
+  const [pendingRecurringMove, setPendingRecurringMove] = useState<{
+    event: ReservationEvent
+    start: Date
+    end: Date
+  } | null>(null)
+  const [pendingRecurringScope, setPendingRecurringScope] = useState<'this' | 'all'>('this')
+  const [isRecurringMoveSubmitting, setIsRecurringMoveSubmitting] = useState(false)
   /** 캘린더 필터: 선택한 회의실만 표시. '' 또는 null = 전체 */
   const [selectedRoomId, setSelectedRoomId] = useState<string>('')
   /** 모달에 열린 예약의 회의실 승인자 uid 목록 (승인/반려 버튼 노출 판단) */
@@ -197,12 +223,14 @@ export default function CalendarPage() {
   }, [canReserve])
 
   const handleDateSelect = useCallback((date: Date) => {
+    setMainCalendarDateAnchorIsUserSet(true)
     setSelectedDate(date)
     setCurrentDate(new Date(date.getTime()))
   }, [])
 
   const handleCalendarDateClick = useCallback((date: Date) => {
     if (!canReserve) return
+    setMainCalendarDateAnchorIsUserSet(true)
     setModalInitialDate(date)
     setModalInitialEvent(null)
     setModalOpen(true)
@@ -210,109 +238,111 @@ export default function CalendarPage() {
 
   const handleEventClick = useCallback((event: ReservationEvent) => {
     if (!canOpenEventDetail) return
+    setMainCalendarDateAnchorIsUserSet(true)
     setModalInitialEvent(event)
     setModalInitialDate(new Date(event.start))
     setModalOpen(true)
   }, [canOpenEventDetail])
 
   const handleEventDrop = useCallback(
-    async (event: ReservationEvent, start: Date, end: Date) => {
-      if (event.extendedProps?.status === STATUS_REJECTED) {
-        setReservationError('반려된 예약은 이동할 수 없습니다.')
-        setEvents((prev) =>
-          prev.map((e) => (e.id === event.id ? { ...e } : e))
-        )
+    (event: ReservationEvent, start: Date, end: Date) => {
+      if (isMoveLockedStatus(event.extendedProps?.status)) {
+        setReservationError('승인/반려된 예약은 이동할 수 없습니다.')
+        setMonthRevertKey((k) => k + 1)
         return
       }
       const createUser = event.extendedProps?.createUser
       if (user?.id && createUser != null && createUser !== user.id) {
         setReservationError('본인이 신청한 예약만 이동할 수 있습니다.')
-        setEvents((prev) =>
-          prev.map((e) => (e.id === event.id ? { ...e } : e))
-        )
+        setMonthRevertKey((k) => k + 1)
         return
       }
 
       const reservationId =
         event.extendedProps?.reservationId ??
         (event.id && /^[0-9a-f-]{36}$/i.test(event.id) ? event.id : null)
+      const ep = event.extendedProps
+      const isSeriesMember = (ep?.repeatCount ?? 1) > 1
 
-      if (reservationId) {
-        try {
-          await updateReservationDates(reservationId, start.toISOString(), end.toISOString())
-        } catch (err) {
-          setReservationError(err instanceof Error ? err.message : '예약 일시 변경 실패')
-          setMonthRevertKey((k) => k + 1)
-          return
-        }
+      if (isSeriesMember) {
+        setPendingRecurringScope('this')
+        setPendingRecurringMove({ event, start, end })
+        setMonthRevertKey((k) => k + 1)
+        return
       }
 
-      setEvents((prevEvents) =>
-        prevEvents.map((e) =>
-          e.id === event.id ? { ...e, start: start.toISOString(), end: end.toISOString() } : e
+      void (async () => {
+        if (reservationId) {
+          try {
+            await updateReservationDates(reservationId, start.toISOString(), end.toISOString())
+          } catch (err) {
+            setReservationError(err instanceof Error ? err.message : '예약 일시 변경 실패')
+            setMonthRevertKey((k) => k + 1)
+            return
+          }
+        }
+        setEvents((prevEvents) =>
+          prevEvents.map((e) =>
+            e.id === event.id ? { ...e, start: start.toISOString(), end: end.toISOString() } : e
+          )
         )
-      )
+      })()
     },
     [user?.id]
   )
 
   const handleEventResize = useCallback(
-    async (event: ReservationEvent, start: Date, end: Date) => {
-      if (event.extendedProps?.status === STATUS_REJECTED) {
-        setReservationError('반려된 예약은 이동할 수 없습니다.')
-        setEvents((prev) =>
-          prev.map((e) => (e.id === event.id ? { ...e } : e))
-        )
+    (event: ReservationEvent, start: Date, end: Date) => {
+      if (isMoveLockedStatus(event.extendedProps?.status)) {
+        setReservationError('승인/반려된 예약은 이동할 수 없습니다.')
+        setMonthRevertKey((k) => k + 1)
         return
       }
       const createUser = event.extendedProps?.createUser
       if (user?.id && createUser != null && createUser !== user.id) {
         setReservationError('본인이 신청한 예약만 이동할 수 있습니다.')
-        setEvents((prev) =>
-          prev.map((e) => (e.id === event.id ? { ...e } : e))
-        )
+        setMonthRevertKey((k) => k + 1)
         return
       }
 
       const reservationId =
         event.extendedProps?.reservationId ??
         (event.id && /^[0-9a-f-]{36}$/i.test(event.id) ? event.id : null)
+      const ep = event.extendedProps
+      const isSeriesMember = (ep?.repeatCount ?? 1) > 1
 
-      if (reservationId) {
-        try {
-          await updateReservationDates(reservationId, start.toISOString(), end.toISOString())
-        } catch (err) {
-          setReservationError(err instanceof Error ? err.message : '예약 일시 변경 실패')
-          setMonthRevertKey((k) => k + 1)
-          return
-        }
+      if (isSeriesMember) {
+        setPendingRecurringScope('this')
+        setPendingRecurringMove({ event, start, end })
+        setMonthRevertKey((k) => k + 1)
+        return
       }
 
-      setEvents((prevEvents) =>
-        prevEvents.map((e) =>
-          e.id === event.id ? { ...e, start: start.toISOString(), end: end.toISOString() } : e
+      void (async () => {
+        if (reservationId) {
+          try {
+            await updateReservationDates(reservationId, start.toISOString(), end.toISOString())
+          } catch (err) {
+            setReservationError(err instanceof Error ? err.message : '예약 일시 변경 실패')
+            setMonthRevertKey((k) => k + 1)
+            return
+          }
+        }
+        setEvents((prevEvents) =>
+          prevEvents.map((e) =>
+            e.id === event.id ? { ...e, start: start.toISOString(), end: end.toISOString() } : e
+          )
         )
-      )
+      })()
     },
     [user?.id]
   )
 
   const handleSaveReservation = useCallback(
-    async (data: {
-      title: string
-      start: Date
-      end: Date
-      roomId: string
-      roomName: string
-      booker?: string
-      recurrenceCd?: number | null
-      recurrenceEndYmd?: string | null
-      isAllDay?: boolean
-      cycleNumber?: number
-      cycleUnitCd?: number | null
-      selectedDays?: boolean[]
-      repeatCondition?: string | null
-    }) => {
+    async (
+      data: ReservationSaveData,
+      options?: { recurringScope?: 'this' | 'all' }
+    ) => {
       setReservationError(null)
       if (!user?.id) {
         setReservationError('로그인 후 예약할 수 있습니다.')
@@ -433,11 +463,12 @@ export default function CalendarPage() {
           ? modalInitialEvent.id
           : null)
 
+      const ep = modalInitialEvent?.extendedProps
+      const repeatGroupId = ep?.repeatGroupId
+      const isSeriesMember = (ep?.repeatCount ?? 1) > 1
+
       try {
-        if (reservationIdForUpdate) {
-          const updated = await updateReservation(reservationIdForUpdate, payload)
-          applyAndClose(reservationIdForUpdate, undefined, updated.status ?? undefined)
-        } else {
+        if (!reservationIdForUpdate) {
           const result: InsertReservationResult = await insertReservation(payload, user.id)
           const isRepeat = 'isRepeat' in result && result.isRepeat
           const reservation = 'isRepeat' in result ? result.reservation : result
@@ -448,7 +479,33 @@ export default function CalendarPage() {
             const booker = await fetchBookerInfoByUserUid(user.id).catch(() => undefined)
             applyAndClose(reservation.reservation_id, booker, reservation.status ?? undefined)
           }
+          return
         }
+
+        if (isSeriesMember && options?.recurringScope === 'all') {
+          await replaceRepeatGroupWithPayload(String(repeatGroupId), payload, user.id)
+          setModalOpen(false)
+          setCalendarRefreshKey((k) => k + 1)
+          return
+        }
+
+        if (isSeriesMember && options?.recurringScope === 'this') {
+          // "이 일정"은 항상 단건 수정(update)으로 처리 (삭제+재생성 금지)
+          await updateReservationThisInSeries(reservationIdForUpdate, payload)
+          setModalOpen(false)
+          setCalendarRefreshKey((k) => k + 1)
+          return
+        }
+
+        if (!isSeriesMember && shouldExpandRepeatPayload(payload)) {
+          await updateReservationThisInstanceReexpand(reservationIdForUpdate, payload, user.id)
+          setModalOpen(false)
+          setCalendarRefreshKey((k) => k + 1)
+          return
+        }
+
+        const updated = await updateReservation(reservationIdForUpdate, payload)
+        applyAndClose(reservationIdForUpdate, undefined, updated.status ?? undefined)
       } catch (err) {
         setReservationError(err instanceof Error ? err.message : '예약 저장에 실패했습니다.')
       }
@@ -600,11 +657,25 @@ export default function CalendarPage() {
             key={monthRevertKey}
             events={events}
             currentDate={currentDate}
+            initialView={calendarViewType}
+            snapToTodayOnViewChange={!mainCalendarDateAnchorIsUserSet}
             onDateClick={handleCalendarDateClick}
             onEventClick={handleEventClick}
             onNavigate={(date) => setCurrentDate(date)}
+            onViewChange={(viewType) => {
+              if (viewType === 'dayGridMonth' || viewType === 'timeGridWeek' || viewType === 'timeGridDay') {
+                setCalendarViewType(viewType)
+              }
+            }}
+            onCalendarRangeNavigated={() => setMainCalendarDateAnchorIsUserSet(true)}
+            onSnapToToday={() => {
+              const today = new Date()
+              setSelectedDate(today)
+              setCurrentDate(today)
+            }}
             onTodayClick={() => {
               const today = new Date()
+              setMainCalendarDateAnchorIsUserSet(false)
               setSelectedDate(today)
               setCurrentDate(today)
             }}
@@ -660,6 +731,149 @@ export default function CalendarPage() {
           }
         }}
       />
+
+      {pendingRecurringMove && (
+        <div
+          className="modal-overlay"
+          onClick={() => setPendingRecurringMove(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pending-recurring-move-title"
+        >
+          <div
+            className="reservation-modal delete-recurring-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2 id="pending-recurring-move-title">반복 일정 수정</h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setPendingRecurringMove(null)}
+                aria-label="닫기"
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group delete-recurring-options">
+                <label className="radio-label">
+                  <input
+                    type="radio"
+                    name="pendingRecurringScope"
+                    checked={pendingRecurringScope === 'this'}
+                    onChange={() => setPendingRecurringScope('this')}
+                  />
+                  이 일정
+                </label>
+                <label className="radio-label">
+                  <input
+                    type="radio"
+                    name="pendingRecurringScope"
+                    checked={pendingRecurringScope === 'all'}
+                    disabled={
+                      pendingRecurringMove.event.extendedProps?.recurrenceCd === RECURRENCE_CUSTOM_CD &&
+                      pendingRecurringMove.event.extendedProps?.repeatUser === REPEAT_USER_WEEK_CD
+                    }
+                    onChange={() => setPendingRecurringScope('all')}
+                  />
+                  모든 일정
+                </label>
+              </div>
+              <div className="modal-actions">
+                <button type="button" onClick={() => setPendingRecurringMove(null)}>
+                  취소
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={isRecurringMoveSubmitting}
+                  onClick={() => {
+                    const move = pendingRecurringMove
+                    const epe = move.event.extendedProps
+                    const rid = epe?.reservationId
+                    const rg = epe?.repeatGroupId
+                    if (!rid || !rg) return
+                    const disableAll =
+                      epe?.recurrenceCd === RECURRENCE_CUSTOM_CD &&
+                      epe?.repeatUser === REPEAT_USER_WEEK_CD
+                    const scope = disableAll ? 'this' : pendingRecurringScope
+                    void (async () => {
+                      setIsRecurringMoveSubmitting(true)
+                      try {
+                        if (scope === 'this') {
+                          await updateReservationDatesThisEvent(
+                            rid,
+                            move.start.toISOString(),
+                            move.end.toISOString()
+                          )
+                        } else {
+                          await updateRepeatGroupDatesAll(rg, rid, move.start, move.end)
+                        }
+                        setPendingRecurringMove(null)
+                        setCalendarRefreshKey((k) => k + 1)
+                      } catch (err) {
+                        setReservationError(
+                          err instanceof Error ? err.message : '예약 일시 변경 실패'
+                        )
+                        setPendingRecurringMove(null)
+                      } finally {
+                        setIsRecurringMoveSubmitting(false)
+                      }
+                    })()
+                  }}
+                >
+                  확인
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isRecurringMoveSubmitting && (
+        <div
+          className="modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="recurring-move-progress-title"
+        >
+          <div
+            className="reservation-modal delete-recurring-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <h2 id="recurring-move-progress-title">이동 처리중</h2>
+            </div>
+            <div className="modal-body">
+              <p className="reservation-error-message">반복 일정 이동 중입니다. 잠시만 기다려 주세요.</p>
+              <div
+                aria-hidden="true"
+                style={{
+                  marginTop: 12,
+                  width: '100%',
+                  height: 8,
+                  borderRadius: 9999,
+                  background: '#e5e7eb',
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: 9999,
+                    background:
+                      'linear-gradient(90deg, #93c5fd 0%, #3b82f6 45%, #1d4ed8 55%, #93c5fd 100%)',
+                    backgroundSize: '200% 100%',
+                    animation: 'reservation-progress-shimmer 1.2s linear infinite',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {reservationError != null && (
         <div className="modal-overlay" onClick={() => setReservationError(null)} role="dialog" aria-modal="true">

@@ -36,6 +36,27 @@ const RECURRENCE_MONTHLY_CD = 140
 
 const DAY_NAMES_KO = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일']
 
+/** 사용자 설정 반복 + 주기 단위 lookup 170 = 110(주)일 때 "모든 일정" 수정 비활성 */
+const REPEAT_USER_WEEK_CD = 110
+/** 사용자 설정 반복 + 주기 단위 lookup 170 = 120(개월) */
+const REPEAT_USER_MONTH_CD = 120
+
+export type ReservationSaveData = {
+  title: string
+  start: Date
+  end: Date
+  roomId: string
+  roomName: string
+  booker?: string
+  recurrenceCd?: number | null
+  recurrenceEndYmd?: string | null
+  isAllDay?: boolean
+  cycleNumber?: number
+  cycleUnitCd?: number | null
+  selectedDays?: boolean[]
+  repeatCondition?: string | null
+}
+
 /** mr_reservations.status → 표시 텍스트 */
 const RESERVATION_STATUS_LABELS: Record<number, string> = {
   110: '신청',
@@ -82,25 +103,10 @@ interface ReservationModalProps {
   /** 로그인 사용자 UID. 예약자와 같을 때만 삭제 버튼 표시 */
   currentUserUid?: string | null
   onClose: () => void
-  onSave: (data: {
-    title: string
-    start: Date
-    end: Date
-    roomId: string
-    roomName: string
-    booker?: string
-    recurrenceCd?: number | null
-    recurrenceEndYmd?: string | null
-    isAllDay?: boolean
-    /** 반복 주기 수 (사용자설정 시) */
-    cycleNumber?: number
-    /** 반복 주기 단위 lookup 170 (1일 2주 3월) */
-    cycleUnitCd?: number | null
-    /** 요일 선택 [일,월,화,수,목,금,토] 사용자설정+주 */
-    selectedDays?: boolean[]
-    /** "넷째 주 수요일" 형태, 사용자설정+개월 */
-    repeatCondition?: string | null
-  }) => void
+  onSave: (
+    data: ReservationSaveData,
+    options?: { recurringScope?: 'this' | 'all' }
+  ) => void | Promise<void>
   /** 삭제 시 호출. reservationId 전달 후 모달은 호출 측에서 닫기 */
   onDelete?: (reservationId: string) => void | Promise<void>
   /** 반복 일정 삭제 시 호출 (이 일정 / 이 일정 및 향후 / 모든 일정) */
@@ -280,6 +286,13 @@ export default function ReservationModal({
   /** 반복 일정 삭제 팝업: 열림 여부, 선택 범위 */
   const [deleteRecurringOpen, setDeleteRecurringOpen] = useState(false)
   const [deleteRecurringScope, setDeleteRecurringScope] = useState<DeleteRecurringScope>('this')
+  /** 반복 일정 수정(저장) 팝업 */
+  const [editRecurringSaveOpen, setEditRecurringSaveOpen] = useState(false)
+  const [editRecurringSaveScope, setEditRecurringSaveScope] = useState<'this' | 'all'>('this')
+  const [pendingSaveData, setPendingSaveData] = useState<ReservationSaveData | null>(null)
+  /** 저장/삭제 처리 중 오버레이 표시 */
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitLabel, setSubmitLabel] = useState<'저장' | '삭제'>('저장')
   /** 반려 팝업: 열림 여부, 반려 사유 입력, 검증 에러 */
   const [rejectPopupOpen, setRejectPopupOpen] = useState(false)
   const [rejectComment, setRejectComment] = useState('')
@@ -374,21 +387,8 @@ export default function ReservationModal({
       /반복\s*없음/.test(String(o.lookup_value_nm).trim())
     )?.lookup_value_cd ?? RECURRENCE_NONE_CD
 
-  /** 수정 모드에서 DB에 반복 설정이 있으면 해당 옵션도 포함 (종일+시작일≠종료일이어도 반복 표시) */
-  const loadedRecurrenceCd = initialEvent?.extendedProps?.recurrenceCd
   const visibleRecurrenceOptions = showOnlyRecurrenceNone
-    ? (() => {
-        const base = recurrenceOptions.filter((o) => o.lookup_value_cd === noRecurrenceCd)
-        if (
-          loadedRecurrenceCd != null &&
-          Number(loadedRecurrenceCd) !== noRecurrenceCd &&
-          !base.some((o) => o.lookup_value_cd === loadedRecurrenceCd)
-        ) {
-          const extra = recurrenceOptions.find((o) => Number(o.lookup_value_cd) === Number(loadedRecurrenceCd))
-          if (extra) return [extra, ...base]
-        }
-        return base
-      })()
+    ? recurrenceOptions.filter((o) => o.lookup_value_cd === noRecurrenceCd)
     : recurrenceOptions
 
   /** 반복 주기 단위가 '개월'인지 (lookup_value_nm에 '개월' 또는 '월' 포함) */
@@ -406,18 +406,17 @@ export default function ReservationModal({
   }, [isOpen, recurrenceCd, isCycleUnitMonth, startDate.getTime()])
 
 
-  /** 시작일·종료일이 다를 때 반복을 반복없음으로 고정. 수정 모드에서 DB에 반복 설정이 있으면 덮어쓰지 않음 */
+  /** 시작일·종료일이 다를 때는 수정 모드에서도 반복을 자동으로 반복없음으로 고정 */
   useEffect(() => {
     if (!isOpen) return
     if (showOnlyRecurrenceNone && recurrenceCd !== noRecurrenceCd) {
-      if (loadedRecurrenceCd != null && Number(loadedRecurrenceCd) !== noRecurrenceCd) return
       setRecurrenceCd(noRecurrenceCd)
       setRecurrenceEndDate('')
       setRecurrenceEndDateInput(null)
       prevRecurrenceEndInputRef.current = null
       setRecurrenceEndError(null)
     }
-  }, [isOpen, showOnlyRecurrenceNone, recurrenceCd, noRecurrenceCd, loadedRecurrenceCd])
+  }, [isOpen, showOnlyRecurrenceNone, recurrenceCd, noRecurrenceCd])
 
   /** 새 예약 시 반복 옵션 로드 후 '반복없음'으로 초기화. 수정 시 recurrenceCd가 없으면 첫 번째 옵션으로 설정 */
   useEffect(() => {
@@ -470,6 +469,8 @@ export default function ReservationModal({
         }
         if (ep?.cycleUnitCd != null && !Number.isNaN(Number(ep.cycleUnitCd))) {
           setCycleUnitCd(Number(ep.cycleUnitCd))
+        } else if (ep?.repeatUser != null && !Number.isNaN(Number(ep.repeatUser))) {
+          setCycleUnitCd(Number(ep.repeatUser))
         }
         if (Array.isArray(ep?.selectedDays) && ep.selectedDays.length === 7) {
           setSelectedDays(ep.selectedDays.map((v) => !!v))
@@ -577,7 +578,25 @@ export default function ReservationModal({
     })
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  /** 수정 모드: 사용자 설정 반복(150) + 주/개월(110/120)은 반복 조건(주기/요일/종료일) 수정 잠금 */
+  const isCustomRecurrenceEditLocked = Boolean(
+    initialEvent &&
+      Number(initialEvent.extendedProps?.recurrenceCd) === RECURRENCE_CUSTOM_CD &&
+      (Number(initialEvent.extendedProps?.repeatUser) === REPEAT_USER_WEEK_CD ||
+        Number(initialEvent.extendedProps?.repeatUser) === REPEAT_USER_MONTH_CD)
+  )
+
+  const withProgress = async <T,>(label: '저장' | '삭제', job: () => Promise<T> | T): Promise<T> => {
+    setSubmitLabel(label)
+    setIsSubmitting(true)
+    try {
+      return await job()
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (viewOnly) return
     if (!title.trim()) return
@@ -637,21 +656,59 @@ export default function ReservationModal({
         ? `${MONTHLY_ORDINAL_LABELS[monthlyOrdinal - 1]} ${DAY_NAMES_KO[monthlyDayOfWeek]}`
         : undefined
 
-    onSave({
+    const lockedSelectedDays = Array.isArray(initialEvent?.extendedProps?.selectedDays)
+      ? initialEvent.extendedProps.selectedDays.map((v) => !!v)
+      : undefined
+    const saveData: ReservationSaveData = {
       title: title.trim(),
       start,
       end,
       roomId,
       roomName: room.name,
       booker: '현재 사용자',
-      recurrenceCd: recurrenceCd ?? undefined,
-      recurrenceEndYmd: recurrenceEndYmd ?? undefined,
+      recurrenceCd: isCustomRecurrenceEditLocked
+        ? initialEvent?.extendedProps?.recurrenceCd ?? undefined
+        : recurrenceCd ?? undefined,
+      recurrenceEndYmd: isCustomRecurrenceEditLocked
+        ? initialEvent?.extendedProps?.recurrenceEndYmd ?? undefined
+        : recurrenceEndYmd ?? undefined,
       isAllDay,
-      cycleNumber: recurrenceCd === RECURRENCE_CUSTOM_CD ? cycleNumber : undefined,
-      cycleUnitCd: recurrenceCd === RECURRENCE_CUSTOM_CD ? cycleUnitCd ?? undefined : undefined,
-      selectedDays: recurrenceCd === RECURRENCE_CUSTOM_CD && !isCycleUnitMonth ? selectedDays : undefined,
-      repeatCondition: repeatCondition ?? undefined,
-    })
+      cycleNumber: isCustomRecurrenceEditLocked
+        ? initialEvent?.extendedProps?.cycleNumber ?? undefined
+        : recurrenceCd === RECURRENCE_CUSTOM_CD
+          ? cycleNumber
+          : undefined,
+      cycleUnitCd: isCustomRecurrenceEditLocked
+        ? initialEvent?.extendedProps?.cycleUnitCd ?? initialEvent?.extendedProps?.repeatUser ?? undefined
+        : recurrenceCd === RECURRENCE_CUSTOM_CD
+          ? cycleUnitCd ?? undefined
+          : undefined,
+      selectedDays: isCustomRecurrenceEditLocked
+        ? lockedSelectedDays
+        : recurrenceCd === RECURRENCE_CUSTOM_CD && !isCycleUnitMonth
+          ? selectedDays
+          : undefined,
+      repeatCondition: isCustomRecurrenceEditLocked
+        ? initialEvent?.extendedProps?.repeatCondition ?? undefined
+        : repeatCondition ?? undefined,
+    }
+
+    const ep = initialEvent?.extendedProps
+    const isSeriesMember = initialEvent != null && (ep?.repeatCount ?? 1) > 1
+    const status = ep?.status
+    const needRecurringSave =
+      isSeriesMember &&
+      status !== 120 &&
+      status !== 130
+
+    if (needRecurringSave) {
+      setPendingSaveData(saveData)
+      setEditRecurringSaveScope('this')
+      setEditRecurringSaveOpen(true)
+      return
+    }
+
+    await withProgress('저장', () => onSave(saveData))
   }
 
   if (!isOpen) return null
@@ -671,7 +728,7 @@ export default function ReservationModal({
 
   return (
     <>
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={() => { if (!isSubmitting) onClose() }}>
       <div className="reservation-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-header-title-wrap">
@@ -701,7 +758,13 @@ export default function ReservationModal({
               )
             })()}
           </div>
-          <button type="button" className="modal-close" onClick={onClose} aria-label="닫기">
+          <button
+            type="button"
+            className="modal-close"
+            onClick={() => { if (!isSubmitting) onClose() }}
+            aria-label="닫기"
+            disabled={isSubmitting}
+          >
             ×
           </button>
         </div>
@@ -873,7 +936,7 @@ export default function ReservationModal({
                 <select
                   className="form-input-recurrence"
                   value={recurrenceCd != null ? String(recurrenceCd) : ''}
-                  disabled={isReadOnly}
+                  disabled={isReadOnly || isCustomRecurrenceEditLocked}
                   onChange={(e) => {
                     const raw = e.target.value
                     const numVal = raw === '' ? null : Number(raw)
@@ -921,12 +984,12 @@ export default function ReservationModal({
                             onFocus={(e) => e.target.select()}
                             className="recurrence-cycle-number form-input"
                             aria-label="반복 주기 수"
-                            disabled={isReadOnly}
+                            disabled={isReadOnly || isCustomRecurrenceEditLocked}
                           />
                           <select
                             className="recurrence-cycle-unit form-input"
                             value={cycleUnitCd ?? ''}
-                            disabled={isReadOnly}
+                            disabled={isReadOnly || isCustomRecurrenceEditLocked}
                             onChange={(e) => {
                               const val = e.target.value === '' ? null : Number(e.target.value)
                               setCycleUnitCd(val)
@@ -969,7 +1032,7 @@ export default function ReservationModal({
                                   className={`recurrence-day-btn${selectedDays[index] ? ' recurrence-day-btn--selected' : ''}`}
                                   onClick={() => toggleCustomDay(index)}
                                   aria-pressed={selectedDays[index]}
-                                  disabled={isReadOnly}
+                                  disabled={isReadOnly || isCustomRecurrenceEditLocked}
                                 >
                                   {label}
                                 </button>
@@ -1060,10 +1123,15 @@ export default function ReservationModal({
                         }}
                         aria-label="반복 종료일"
                         required
-                        disabled={isReadOnly}
+                        disabled={isReadOnly || isCustomRecurrenceEditLocked}
                       />
                       <span className="form-label-inline">일 까지</span>
                     </span>
+                    {isCustomRecurrenceEditLocked && (
+                      <span className="form-error-inline form-error-inline--full" role="note">
+                        사용자 설정 반복(주/개월) 일정은 반복 조건(주기, 요일, 종료일)을 수정할 수 없습니다.
+                      </span>
+                    )}
                     {recurrenceEndError && (
                       <span className="form-error-inline form-error-inline--full" role="alert">
                         {recurrenceEndError}
@@ -1119,7 +1187,7 @@ export default function ReservationModal({
               <>
             {(!initialEvent || (currentUserUid && initialEvent.extendedProps?.createUser === currentUserUid)) && (
               <>
-                <button type="button" onClick={onClose}>
+                <button type="button" onClick={onClose} disabled={isSubmitting}>
                   취소
                 </button>
                 {(!initialEvent ||
@@ -1128,7 +1196,7 @@ export default function ReservationModal({
                   <button
                     type="submit"
                     className="btn-primary"
-                    disabled={!title.trim() || !roomId}
+                    disabled={!title.trim() || !roomId || isSubmitting}
                   >
                     저장
                   </button>
@@ -1142,17 +1210,17 @@ export default function ReservationModal({
               <button
                 type="button"
                 className="btn-danger"
-                onClick={() => {
+                onClick={async () => {
                   const id = initialEvent.extendedProps!.reservationId!
                   const repeatGroupId = initialEvent.extendedProps?.repeatGroupId
                   if (repeatGroupId && onDeleteRecurring) {
                     setDeleteRecurringScope('this')
                     setDeleteRecurringOpen(true)
                   } else if (onDelete) {
-                    onDelete(id)
+                    await withProgress('삭제', () => onDelete(id))
                   }
                 }}
-                disabled={!onDelete && !onDeleteRecurring}
+                disabled={(!onDelete && !onDeleteRecurring) || isSubmitting}
               >
                 삭제
               </button>
@@ -1278,6 +1346,93 @@ export default function ReservationModal({
           </div>
         </div>
       )}
+
+    {editRecurringSaveOpen && pendingSaveData && (
+      <div
+        className="modal-overlay"
+        onClick={() => {
+          setEditRecurringSaveOpen(false)
+          setPendingSaveData(null)
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-recurring-save-title"
+      >
+        <div
+          className="reservation-modal delete-recurring-modal"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="modal-header">
+            <h2 id="edit-recurring-save-title">반복 일정 수정</h2>
+            <button
+              type="button"
+              className="modal-close"
+              onClick={() => {
+                setEditRecurringSaveOpen(false)
+                setPendingSaveData(null)
+              }}
+              aria-label="닫기"
+            >
+              ×
+            </button>
+          </div>
+          <div className="modal-body">
+            <div className="form-group delete-recurring-options">
+              <label className="radio-label">
+                <input
+                  type="radio"
+                  name="editRecurringSaveScope"
+                  checked={editRecurringSaveScope === 'this'}
+                  onChange={() => setEditRecurringSaveScope('this')}
+                />
+                이 일정
+              </label>
+              <label className="radio-label">
+                <input
+                  type="radio"
+                  name="editRecurringSaveScope"
+                  checked={editRecurringSaveScope === 'all'}
+                  disabled={recurrenceCd === RECURRENCE_CUSTOM_CD && cycleUnitCd === REPEAT_USER_WEEK_CD}
+                  onChange={() => setEditRecurringSaveScope('all')}
+                />
+                모든 일정
+              </label>
+            </div>
+            <div className="modal-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  if (isSubmitting) return
+                  setEditRecurringSaveOpen(false)
+                  setPendingSaveData(null)
+                }}
+                disabled={isSubmitting}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={isSubmitting}
+                onClick={async () => {
+                  const data = pendingSaveData
+                  const scope =
+                    recurrenceCd === RECURRENCE_CUSTOM_CD && cycleUnitCd === REPEAT_USER_WEEK_CD
+                      ? 'this'
+                      : editRecurringSaveScope
+                  await withProgress('저장', () => onSave(data, { recurringScope: scope }))
+                  setEditRecurringSaveOpen(false)
+                  setPendingSaveData(null)
+                }}
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
     {rejectPopupOpen && initialEvent?.extendedProps?.reservationId && (
       <div
         className="modal-overlay"
@@ -1346,6 +1501,41 @@ export default function ReservationModal({
               >
                 반려
               </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    {isSubmitting && (
+      <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="reservation-submit-progress-title">
+        <div className="reservation-modal delete-recurring-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h2 id="reservation-submit-progress-title">{submitLabel} 처리중</h2>
+          </div>
+          <div className="modal-body">
+            <p style={{ margin: 0 }}>{submitLabel} 중입니다. 잠시만 기다려 주세요.</p>
+            <div
+              aria-hidden="true"
+              style={{
+                marginTop: 12,
+                width: '100%',
+                height: 8,
+                borderRadius: 9999,
+                background: '#e5e7eb',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: 9999,
+                  background:
+                    'linear-gradient(90deg, #93c5fd 0%, #3b82f6 45%, #1d4ed8 55%, #93c5fd 100%)',
+                  backgroundSize: '200% 100%',
+                  animation: 'reservation-progress-shimmer 1.2s linear infinite',
+                }}
+              />
             </div>
           </div>
         </div>

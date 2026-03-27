@@ -595,6 +595,16 @@
   z-index: 100000;
 }
 
+@keyframes reservation-progress-slide {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
+@keyframes reservation-progress-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 .reservation-modal {
   background: #fff;
   border-radius: 8px;
@@ -912,10 +922,10 @@
   gap: 8px;
 }
 .form-group--row .recurrence-inline-cycle .recurrence-cycle-number {
-  width: 80px !important;
-  min-width: 80px !important;
-  max-width: 80px !important;
-  padding: 10px 4px !important;
+  width: 60px !important;
+  min-width: 60px !important;
+  max-width: 60px !important;
+  padding: 10px 6px !important;
   box-sizing: border-box !important;
 }
 .form-group--row .recurrence-inline-cycle .recurrence-cycle-unit {

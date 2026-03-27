@@ -46,6 +46,10 @@ export interface ReservationEvent {
     /** 요일 순서: 일~토 (ReservationModal WEEKDAY_LABELS와 동일) */
     selectedDays?: boolean[]
     repeatCondition?: string | null
+    /** mr_reservations.repeat_user (lookup 170, 사용자 설정 반복 시) */
+    repeatUser?: number | null
+    /** 같은 반복 그룹 내 occurrence 개수(캘린더 팝업 분기용) */
+    repeatCount?: number
   }
 }
 

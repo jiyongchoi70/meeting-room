@@ -302,7 +302,9 @@ export async function fetchReservationsForCalendar(
 
   let query = supabase
     .from('mr_reservations')
-    .select('reservation_id, title, start_ymd, end_ymd, room_id, allday_yn, create_user, status, repeat_id, repeat_end_ymd, repeat_group_id, return_comment')
+    .select(
+      'reservation_id, title, start_ymd, end_ymd, room_id, allday_yn, create_user, status, repeat_id, repeat_end_ymd, repeat_group_id, repeat_user, sun_yn, mon_yn, tue_yn, wed_yn, thu_yn, fri_yn, sat_yn, return_comment'
+    )
     .gte('start_ymd', startDay)
     .lte('start_ymd', endDay)
     .order('start_ymd', { ascending: true })
@@ -328,6 +330,14 @@ export async function fetchReservationsForCalendar(
     repeat_id: number | null
     repeat_end_ymd: string | null
     repeat_group_id?: string | null
+    repeat_user?: string | null
+    sun_yn?: string | null
+    mon_yn?: string | null
+    tue_yn?: string | null
+    wed_yn?: string | null
+    thu_yn?: string | null
+    fri_yn?: string | null
+    sat_yn?: string | null
     return_comment?: string | null
   }>
   const roomIds = [...new Set(list.map((r) => r.room_id))]
@@ -394,10 +404,28 @@ export async function fetchReservationsForCalendar(
     const next = endDate.toISOString().slice(0, 10)
     return end_ymd.replace(/^\d{4}-\d{2}-\d{2}/, next)
   }
+  const repeatCountMap = new Map<string, number>()
+  for (const r of list) {
+    const key = String(r.repeat_group_id ?? r.reservation_id)
+    repeatCountMap.set(key, (repeatCountMap.get(key) ?? 0) + 1)
+  }
 
   return list.map((r) => {
     const isAllDay = r.allday_yn === 'Y'
     const calendarEnd = toCalendarEnd(r.start_ymd, r.end_ymd, isAllDay)
+    const selectedDaysForModal: boolean[] | undefined =
+      r.repeat_id != null && Number(r.repeat_id) === REPEAT_CUSTOM
+        ? [
+            r.sun_yn === 'Y',
+            r.mon_yn === 'Y',
+            r.tue_yn === 'Y',
+            r.wed_yn === 'Y',
+            r.thu_yn === 'Y',
+            r.fri_yn === 'Y',
+            r.sat_yn === 'Y',
+          ]
+        : undefined
+    const hasCustomDay = selectedDaysForModal?.some(Boolean)
     return {
     id: r.reservation_id,
     title: r.title,
@@ -411,10 +439,16 @@ export async function fetchReservationsForCalendar(
       createUser: r.create_user ?? undefined,
       status: r.status ?? undefined,
       repeatGroupId: r.repeat_group_id ?? undefined,
+      repeatCount: repeatCountMap.get(String(r.repeat_group_id ?? r.reservation_id)) ?? 1,
       startYmd: r.start_ymd != null ? String(r.start_ymd).slice(0, 10) : undefined,
       color: EVENT_COLORS[hashId(r.repeat_group_id ?? r.reservation_id) % EVENT_COLORS.length],
       recurrenceCd: r.repeat_id != null ? Number(r.repeat_id) : undefined,
       recurrenceEndYmd: r.repeat_end_ymd != null && String(r.repeat_end_ymd).trim() !== '' ? String(r.repeat_end_ymd).trim() : undefined,
+      repeatUser:
+        r.repeat_user != null && String(r.repeat_user).trim() !== ''
+          ? Number(r.repeat_user)
+          : undefined,
+      selectedDays: hasCustomDay ? selectedDaysForModal : undefined,
       returnComment: r.status === STATUS_REJECTED ? r.return_comment ?? null : undefined,
       ...(r.create_user
         ? (() => {
@@ -793,6 +827,403 @@ async function checkOverlap(
   return { hasOverlap: true, conflictYmd: row.conflict_ymd ?? undefined }
 }
 
+/** 여러 예약을 제외하고 중복 검사 (반복 그룹 일괄 이동·교체) */
+async function checkOverlapExcluding(
+  roomId: string,
+  start_ymd: string,
+  end_ymd: string,
+  excludeReservationIds: string[]
+): Promise<{ hasOverlap: boolean; conflictYmd?: string }> {
+  const { data, error } = await supabase.rpc('check_reservation_overlap_excluding', {
+    p_room_id: roomId,
+    p_start_ymd: start_ymd,
+    p_end_ymd: end_ymd,
+    p_exclude_ids: excludeReservationIds.length > 0 ? excludeReservationIds : [],
+  })
+  if (error) {
+    console.error('[checkOverlapExcluding] RPC error', error.message)
+    throw new Error(error.message || '중복 검사 실패')
+  }
+  const row = Array.isArray(data) ? data[0] : data
+  if (!row || row.has_overlap !== true) return { hasOverlap: false }
+  return { hasOverlap: true, conflictYmd: row.conflict_ymd ?? undefined }
+}
+
+/** insertReservation과 동일한 조건으로 반복 펼침 여부 */
+export function shouldExpandRepeatPayload(payload: SaveReservationPayload): boolean {
+  const repeatId = payload.repeat_id ?? null
+  const repeatEndYmd = payload.repeat_end_ymd?.trim()
+  const rawRepeatUser = payload.repeat_user
+  const repeatUser =
+    rawRepeatUser != null && String(rawRepeatUser).trim() !== '' ? Number(rawRepeatUser) : null
+  const shouldExpandStandard =
+    repeatId != null &&
+    !!repeatEndYmd &&
+    [REPEAT_DAILY, REPEAT_WEEKLY, REPEAT_MONTHLY].includes(Number(repeatId))
+  const shouldExpandCustom =
+    Number(repeatId) === REPEAT_CUSTOM &&
+    !!repeatEndYmd &&
+    (repeatUser === REPEAT_USER_WEEK || repeatUser === REPEAT_USER_MONTH)
+  return shouldExpandStandard || shouldExpandCustom
+}
+
+/** insertReservation과 동일한 날짜 구간 목록 */
+export function getDateRangesForPayload(payload: SaveReservationPayload): Array<{
+  start_ymd: string
+  end_ymd: string
+}> {
+  const repeatId = payload.repeat_id ?? null
+  const repeatEndYmd = payload.repeat_end_ymd?.trim()
+  if (!repeatEndYmd) return [{ start_ymd: payload.start_ymd, end_ymd: payload.end_ymd }]
+  const rawRepeatUser = payload.repeat_user
+  const repeatUser =
+    rawRepeatUser != null && String(rawRepeatUser).trim() !== '' ? Number(rawRepeatUser) : null
+  const shouldExpandStandard =
+    repeatId != null &&
+    !!repeatEndYmd &&
+    [REPEAT_DAILY, REPEAT_WEEKLY, REPEAT_MONTHLY].includes(Number(repeatId))
+  const shouldExpandCustom =
+    Number(repeatId) === REPEAT_CUSTOM &&
+    !!repeatEndYmd &&
+    (repeatUser === REPEAT_USER_WEEK || repeatUser === REPEAT_USER_MONTH)
+  if (!shouldExpandStandard && !shouldExpandCustom) {
+    return [{ start_ymd: payload.start_ymd, end_ymd: payload.end_ymd }]
+  }
+  const today = new Date()
+  const todayYmd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  if (shouldExpandCustom) {
+    return getCustomRepeatDateRanges(payload, repeatEndYmd, todayYmd)
+  }
+  return getRepeatDateRanges(payload.start_ymd, payload.end_ymd, Number(repeatId), repeatEndYmd)
+}
+
+/** 같은 반복 그룹에 속한 reservation_id 목록 (그룹 대표 행 포함) */
+export async function fetchReservationIdsInRepeatGroup(repeatGroupId: string): Promise<string[]> {
+  const { data: byGroup, error: err1 } = await supabase
+    .from('mr_reservations')
+    .select('reservation_id')
+    .eq('repeat_group_id', repeatGroupId)
+  if (err1) throw new Error(err1.message || '예약 조회 실패')
+  const { data: byId, error: err2 } = await supabase
+    .from('mr_reservations')
+    .select('reservation_id')
+    .eq('reservation_id', repeatGroupId)
+    .maybeSingle()
+  if (err2) throw new Error(err2.message || '예약 조회 실패')
+  const set = new Set<string>()
+  ;(byGroup ?? []).forEach((r: { reservation_id: string }) => set.add(r.reservation_id))
+  if (byId?.reservation_id) set.add(byId.reservation_id)
+  return Array.from(set)
+}
+
+function randomUuid(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+/** replace_repeat_group_reservations RPC용 행 JSON (첫 행 id = 그룹 id) */
+function buildRpcRowsForPayload(
+  payload: SaveReservationPayload,
+  createUserUid: string,
+  status: number,
+  ranges: Array<{ start_ymd: string; end_ymd: string }>
+): Record<string, unknown>[] {
+  const groupId = randomUuid()
+  return ranges.map((r, i) => {
+    const reservationId = i === 0 ? groupId : randomUuid()
+    const base = buildReservationRow(
+      payload,
+      createUserUid,
+      status,
+      r.start_ymd,
+      r.end_ymd,
+      groupId
+    )
+    return {
+      ...base,
+      reservation_id: reservationId,
+      repeat_group_id: groupId,
+      create_at: new Date().toISOString(),
+      update_at: new Date().toISOString(),
+    }
+  })
+}
+
+/**
+ * 반복 시리즈 전체를 삭제 후 payload 기준으로 재등록 (한 RPC 트랜잭션).
+ * repeat_id=150 & repeat_user=110 인 시리즈는 UI에서 "모든 일정" 비활성 — 호출 금지.
+ */
+export async function replaceRepeatGroupWithPayload(
+  repeatGroupId: string,
+  payload: SaveReservationPayload,
+  createUserUid: string
+): Promise<void> {
+  const { duplicate_yn } = await getRoomConfirmAndDuplicate(payload.room_id)
+  const status = await getStatusForReserver(payload.room_id, createUserUid)
+  let ranges = getDateRangesForPayload(payload)
+  if (ranges.length === 0) {
+    ranges = [{ start_ymd: payload.start_ymd, end_ymd: payload.end_ymd }]
+  }
+  const excludeIds = await fetchReservationIdsInRepeatGroup(repeatGroupId)
+  if (Number(duplicate_yn) === DUPLICATE_YN_CHECK) {
+    for (const r of ranges) {
+      const { hasOverlap, conflictYmd } = await checkOverlapExcluding(
+        payload.room_id,
+        r.start_ymd,
+        r.end_ymd,
+        excludeIds
+      )
+      if (hasOverlap && conflictYmd) {
+        throw new Error(`${conflictYmd} 중복이 됩니다.`)
+      }
+    }
+  }
+  const rows = buildRpcRowsForPayload(payload, createUserUid, status, ranges)
+  const { error } = await supabase.rpc('replace_repeat_group_reservations', {
+    p_repeat_group_id: repeatGroupId,
+    p_rows: rows,
+  })
+  if (!error) return
+
+  // DB 타입 불일치(예: repeat_group_id varchar vs RPC uuid 파라미터) 환경 fallback
+  const msg = String(error.message ?? '')
+  const typeMismatch =
+    msg.includes('character varying = uuid') ||
+    msg.includes('operator does not exist')
+  if (!typeMismatch) throw new Error(error.message || '반복 일정 일괄 수정 실패')
+
+  const ids = await fetchReservationIdsInRepeatGroup(repeatGroupId)
+  if (ids.length > 0) {
+    const { error: delErr } = await supabase
+      .from('mr_reservations')
+      .delete()
+      .in('reservation_id', ids)
+    if (delErr) throw new Error(delErr.message || '반복 일정 일괄 수정 실패')
+  }
+  const { error: insErr } = await supabase
+    .from('mr_reservations')
+    .insert(rows as Record<string, unknown>[])
+  if (insErr) throw new Error(insErr.message || '반복 일정 일괄 수정 실패')
+}
+
+/** 이 일정만: 일시 변경 + repeat_group_id = reservation_id (시리즈에서 분리) */
+export async function updateReservationDatesThisEvent(
+  reservationId: string,
+  start_ymd: string,
+  end_ymd: string
+): Promise<void> {
+  const { data: row } = await supabase
+    .from('mr_reservations')
+    .select('room_id, repeat_group_id')
+    .eq('reservation_id', reservationId)
+    .single()
+  if (!row) throw new Error('예약을 찾을 수 없습니다.')
+  const rowData = row as { room_id: string; repeat_group_id?: string | null }
+  const roomId = rowData.room_id
+  const currentGroupId = String(rowData.repeat_group_id ?? reservationId)
+  const { duplicate_yn } = await getRoomConfirmAndDuplicate(roomId)
+  if (Number(duplicate_yn) === DUPLICATE_YN_CHECK) {
+    const { hasOverlap, conflictYmd } = await checkOverlap(roomId, start_ymd, end_ymd, reservationId)
+    if (hasOverlap && conflictYmd) {
+      throw new Error(`${conflictYmd} 중복이 됩니다.`)
+    }
+  }
+  if (currentGroupId === reservationId) {
+    // 대표 행을 "이 일정"으로 떼어낼 때, 남은 행들의 그룹 키를 새 대표로 재지정
+    const { data: followers, error: followersErr } = await supabase
+      .from('mr_reservations')
+      .select('reservation_id, start_ymd')
+      .eq('repeat_group_id', currentGroupId)
+      .neq('reservation_id', reservationId)
+      .order('start_ymd', { ascending: true })
+    if (followersErr) throw new Error(followersErr.message || '반복 그룹 재배정 실패')
+    const nextRepresentativeId = (followers?.[0] as { reservation_id: string } | undefined)?.reservation_id
+    if (nextRepresentativeId) {
+      const followerIds = (followers ?? [])
+        .map((r) => (r as { reservation_id: string }).reservation_id)
+        .filter((id) => id !== reservationId)
+      if (followerIds.length > 0) {
+        const { error: regroupErr } = await supabase
+          .from('mr_reservations')
+          .update({ repeat_group_id: nextRepresentativeId })
+          .in('reservation_id', followerIds)
+        if (regroupErr) throw new Error(regroupErr.message || '반복 그룹 재배정 실패')
+      }
+    }
+  }
+  const { error } = await supabase
+    .from('mr_reservations')
+    .update({
+      start_ymd,
+      end_ymd,
+      repeat_group_id: reservationId,
+      update_at: new Date().toISOString(),
+    })
+    .eq('reservation_id', reservationId)
+  if (error) throw new Error(error.message || '예약 일시 변경 실패')
+}
+
+/** 반복 그룹 전체를 같은 시간 차이만큼 이동 (드래그 "모든 일정") */
+export async function updateRepeatGroupDatesAll(
+  repeatGroupId: string,
+  draggedReservationId: string,
+  newStart: Date,
+  newEnd: Date
+): Promise<void> {
+  const { data: rows, error } = await supabase
+    .from('mr_reservations')
+    .select(
+      'reservation_id, title, room_id, allday_yn, start_ymd, end_ymd, repeat_id, repeat_end_ymd, repeat_cycle, repeat_user, sun_yn, mon_yn, tue_yn, wed_yn, thu_yn, fri_yn, sat_yn, repeat_condition, create_user'
+    )
+    .or(`repeat_group_id.eq.${repeatGroupId},reservation_id.eq.${repeatGroupId}`)
+  if (error) throw new Error(error.message || '예약 조회 실패')
+  const list = (rows ?? []) as Array<{
+    reservation_id: string
+    title: string
+    room_id: string
+    allday_yn: string | null
+    start_ymd: string
+    end_ymd: string
+    repeat_id?: string | null
+    repeat_end_ymd?: string | null
+    repeat_cycle?: number | null
+    repeat_user?: string | null
+    sun_yn?: 'Y' | 'N' | null
+    mon_yn?: 'Y' | 'N' | null
+    tue_yn?: 'Y' | 'N' | null
+    wed_yn?: 'Y' | 'N' | null
+    thu_yn?: 'Y' | 'N' | null
+    fri_yn?: 'Y' | 'N' | null
+    sat_yn?: 'Y' | 'N' | null
+    repeat_condition?: string | null
+    create_user?: string | null
+  }>
+  if (list.length === 0) throw new Error('반복 일정을 찾을 수 없습니다.')
+  const dragged = list.find((r) => r.reservation_id === draggedReservationId)
+  if (!dragged) throw new Error('이동할 예약을 찾을 수 없습니다.')
+  const anchor = list.reduce((min, cur) =>
+    new Date(cur.start_ymd).getTime() < new Date(min.start_ymd).getTime() ? cur : min
+  )
+  const draggedStart = new Date(dragged.start_ymd)
+  const draggedEnd = new Date(dragged.end_ymd)
+  const deltaStartMs = newStart.getTime() - draggedStart.getTime()
+  const deltaEndMs = newEnd.getTime() - draggedEnd.getTime()
+  const anchorMovedStart = new Date(new Date(anchor.start_ymd).getTime() + deltaStartMs)
+  const anchorMovedEnd = new Date(new Date(anchor.end_ymd).getTime() + deltaEndMs)
+  const createUserUid = dragged.create_user ?? ''
+  if (!createUserUid) throw new Error('예약 작성자 정보가 없습니다.')
+  const payload: SaveReservationPayload = {
+    title: dragged.title,
+    room_id: dragged.room_id,
+    allday_yn: dragged.allday_yn === 'Y' ? 'Y' : 'N',
+    // "모든 일정" 이동은 드래그한 건이 아니라 시리즈 첫 occurrence를 기준으로 재생성해야
+    // 마지막 건을 이동해도 전체 시리즈가 1건으로 축소되지 않는다.
+    start_ymd: anchorMovedStart.toISOString(),
+    end_ymd: anchorMovedEnd.toISOString(),
+    repeat_id:
+      dragged.repeat_id != null && String(dragged.repeat_id).trim() !== ''
+        ? Number(dragged.repeat_id)
+        : null,
+    repeat_end_ymd: dragged.repeat_end_ymd ?? null,
+    repeat_cycle: dragged.repeat_cycle ?? null,
+    repeat_user:
+      dragged.repeat_user != null && String(dragged.repeat_user).trim() !== ''
+        ? Number(dragged.repeat_user)
+        : null,
+    sun_yn: dragged.sun_yn ?? 'N',
+    mon_yn: dragged.mon_yn ?? 'N',
+    tue_yn: dragged.tue_yn ?? 'N',
+    wed_yn: dragged.wed_yn ?? 'N',
+    thu_yn: dragged.thu_yn ?? 'N',
+    fri_yn: dragged.fri_yn ?? 'N',
+    sat_yn: dragged.sat_yn ?? 'N',
+    repeat_condition: dragged.repeat_condition ?? null,
+  }
+  await replaceRepeatGroupWithPayload(repeatGroupId, payload, createUserUid)
+}
+
+/** 이 일정만 수정: 필드 갱신 + 시리즈에서 분리(repeat_group_id = reservation_id) */
+export async function updateReservationThisInSeries(
+  reservationId: string,
+  payload: SaveReservationPayload
+): Promise<MrReservation> {
+  const { duplicate_yn } = await getRoomConfirmAndDuplicate(payload.room_id)
+  if (Number(duplicate_yn) === DUPLICATE_YN_CHECK) {
+    const { hasOverlap, conflictYmd } = await checkOverlap(
+      payload.room_id,
+      payload.start_ymd,
+      payload.end_ymd,
+      reservationId
+    )
+    if (hasOverlap && conflictYmd) {
+      throw new Error(`${conflictYmd} 중복이 됩니다.`)
+    }
+  }
+  const { data: existing } = await supabase
+    .from('mr_reservations')
+    .select('create_user, repeat_group_id')
+    .eq('reservation_id', reservationId)
+    .maybeSingle()
+  const existingRow = existing as { create_user: string | null; repeat_group_id?: string | null } | null
+  const createUser = existingRow?.create_user ?? null
+  const currentGroupId = String(existingRow?.repeat_group_id ?? reservationId)
+  if (currentGroupId === reservationId) {
+    // 대표 행을 "이 일정"으로 떼어낼 때, 남은 행들의 그룹 키를 새 대표로 재지정
+    const { data: followers, error: followersErr } = await supabase
+      .from('mr_reservations')
+      .select('reservation_id, start_ymd')
+      .eq('repeat_group_id', currentGroupId)
+      .neq('reservation_id', reservationId)
+      .order('start_ymd', { ascending: true })
+    if (followersErr) throw new Error(followersErr.message || '반복 그룹 재배정 실패')
+    const nextRepresentativeId = (followers?.[0] as { reservation_id: string } | undefined)?.reservation_id
+    if (nextRepresentativeId) {
+      const followerIds = (followers ?? [])
+        .map((r) => (r as { reservation_id: string }).reservation_id)
+        .filter((id) => id !== reservationId)
+      if (followerIds.length > 0) {
+        const { error: regroupErr } = await supabase
+          .from('mr_reservations')
+          .update({ repeat_group_id: nextRepresentativeId })
+          .in('reservation_id', followerIds)
+        if (regroupErr) throw new Error(regroupErr.message || '반복 그룹 재배정 실패')
+      }
+    }
+  }
+  const reserverUid = createUser ?? ''
+  const status = await getStatusForReserver(payload.room_id, reserverUid)
+  const row = {
+    title: payload.title,
+    room_id: payload.room_id,
+    allday_yn: payload.allday_yn ?? 'N',
+    start_ymd: payload.start_ymd,
+    end_ymd: payload.end_ymd,
+    repeat_id: payload.repeat_id ?? null,
+    repeat_end_ymd: payload.repeat_end_ymd ?? null,
+    repeat_cycle: payload.repeat_cycle ?? null,
+    repeat_user: payload.repeat_user ?? null,
+    sun_yn: payload.sun_yn ?? 'N',
+    mon_yn: payload.mon_yn ?? 'N',
+    tue_yn: payload.tue_yn ?? 'N',
+    wed_yn: payload.wed_yn ?? 'N',
+    thu_yn: payload.thu_yn ?? 'N',
+    fri_yn: payload.fri_yn ?? 'N',
+    sat_yn: payload.sat_yn ?? 'N',
+    repeat_condition: payload.repeat_condition ?? null,
+    repeat_group_id: reservationId,
+    status,
+    update_at: new Date().toISOString(),
+  }
+  const { data, error } = await supabase
+    .from('mr_reservations')
+    .update(row)
+    .eq('reservation_id', reservationId)
+    .select()
+    .single()
+  if (error) throw new Error(error.message || '예약 수정 실패')
+  return data as MrReservation
+}
+
 /** 예약 저장용 payload (메인 예약/수정 모달 → mr_reservations) */
 export interface SaveReservationPayload {
   title: string
@@ -1015,14 +1446,17 @@ export async function updateReservation(
   reservationId: string,
   payload: SaveReservationPayload
 ): Promise<MrReservation> {
-  const { hasOverlap, conflictYmd } = await checkOverlap(
-    payload.room_id,
-    payload.start_ymd,
-    payload.end_ymd,
-    reservationId
-  )
-  if (hasOverlap && conflictYmd) {
-    throw new Error(`${conflictYmd} 중복이 됩니다.`)
+  const { duplicate_yn } = await getRoomConfirmAndDuplicate(payload.room_id)
+  if (Number(duplicate_yn) === DUPLICATE_YN_CHECK) {
+    const { hasOverlap, conflictYmd } = await checkOverlap(
+      payload.room_id,
+      payload.start_ymd,
+      payload.end_ymd,
+      reservationId
+    )
+    if (hasOverlap && conflictYmd) {
+      throw new Error(`${conflictYmd} 중복이 됩니다.`)
+    }
   }
   const { data: existing } = await supabase
     .from('mr_reservations')
@@ -1076,14 +1510,17 @@ export async function updateReservationDates(
     .single()
   if (!row) throw new Error('예약을 찾을 수 없습니다.')
   const roomId = (row as { room_id: string }).room_id
-  const { hasOverlap, conflictYmd } = await checkOverlap(
-    roomId,
-    start_ymd,
-    end_ymd,
-    reservationId
-  )
-  if (hasOverlap && conflictYmd) {
-    throw new Error(`${conflictYmd} 중복이 됩니다.`)
+  const { duplicate_yn } = await getRoomConfirmAndDuplicate(roomId)
+  if (Number(duplicate_yn) === DUPLICATE_YN_CHECK) {
+    const { hasOverlap, conflictYmd } = await checkOverlap(
+      roomId,
+      start_ymd,
+      end_ymd,
+      reservationId
+    )
+    if (hasOverlap && conflictYmd) {
+      throw new Error(`${conflictYmd} 중복이 됩니다.`)
+    }
   }
   const { error } = await supabase
     .from('mr_reservations')
@@ -1131,4 +1568,25 @@ export async function deleteReservationAllInGroup(repeatGroupId: string): Promis
     .delete()
     .eq('repeat_group_id', repeatGroupId)
   if (error) throw new Error(error.message || '예약 삭제 실패')
+}
+
+/** 이 일정만: 반복 펼침이 필요하면 해당 행 삭제 후 insertReservation과 동일하게 재등록 */
+export async function updateReservationThisInstanceReexpand(
+  reservationId: string,
+  payload: SaveReservationPayload,
+  createUserUid?: string
+): Promise<InsertReservationResult> {
+  let ownerUid = (createUserUid ?? '').trim()
+  if (!ownerUid) {
+    const { data: existing, error } = await supabase
+      .from('mr_reservations')
+      .select('create_user')
+      .eq('reservation_id', reservationId)
+      .maybeSingle()
+    if (error) throw new Error(error.message || '예약 조회 실패')
+    ownerUid = ((existing as { create_user?: string | null } | null)?.create_user ?? '').trim()
+  }
+  if (!ownerUid) throw new Error('예약 작성자 정보가 없습니다.')
+  await deleteReservation(reservationId)
+  return insertReservation(payload, ownerUid)
 }

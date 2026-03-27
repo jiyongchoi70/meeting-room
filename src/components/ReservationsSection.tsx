@@ -16,6 +16,10 @@ import {
   batchUpdateReservationStatus,
   fetchReservationIdsForStatusUpdate,
   updateReservation,
+  replaceRepeatGroupWithPayload,
+  updateReservationThisInSeries,
+  updateReservationThisInstanceReexpand,
+  shouldExpandRepeatPayload,
   deleteReservation,
   deleteReservationThisAndFollowing,
   deleteReservationAllInGroup,
@@ -24,7 +28,7 @@ import {
   type ReservationListFilters,
   type SaveReservationPayload,
 } from '../api/reservations'
-import ReservationModal from './ReservationModal'
+import ReservationModal, { type ReservationSaveData } from './ReservationModal'
 import '../common_code.css'
 import '../App.css'
 
@@ -208,6 +212,10 @@ export default function ReservationsSection() {
           row.repeat_user != null && Number(row.repeat_id) === 150
             ? Number(row.repeat_user)
             : undefined,
+        repeatUser:
+          row.repeat_user != null && Number(row.repeat_id) === 150
+            ? Number(row.repeat_user)
+            : undefined,
         selectedDays: hasCustomDay ? selectedDaysForModal : undefined,
         repeatCondition: row.repeat_condition ?? undefined,
       },
@@ -273,22 +281,12 @@ export default function ReservationsSection() {
   }, [loadList, showToast, userUid])
 
   const handleSaveFromModal = useCallback(
-    async (data: {
-      title: string
-      start: Date
-      end: Date
-      roomId: string
-      roomName: string
-      isAllDay?: boolean
-      recurrenceCd?: number | null
-      recurrenceEndYmd?: string | null
-      cycleNumber?: number
-      cycleUnitCd?: number | null
-      selectedDays?: boolean[]
-      repeatCondition?: string | null
-    }) => {
+    async (
+      data: ReservationSaveData,
+      options?: { recurringScope?: 'this' | 'all' }
+    ) => {
       const reservationId = modalInitialEvent?.extendedProps?.reservationId
-      if (!reservationId) return
+      if (!reservationId || !userUid) return
       const sd = data.selectedDays
       const payload: SaveReservationPayload = {
         title: data.title,
@@ -309,7 +307,34 @@ export default function ReservationsSection() {
         sat_yn: sd && sd[6] ? 'Y' : 'N',
         repeat_condition: data.repeatCondition ?? null,
       }
+      const ep = modalInitialEvent?.extendedProps
+      const resIdFromEp = ep?.reservationId
+      const rg = ep?.repeatGroupId
+      const isSeriesMember =
+        rg &&
+        resIdFromEp &&
+        String(rg).trim() !== '' &&
+        String(rg) !== String(resIdFromEp)
       try {
+        if (isSeriesMember && options?.recurringScope === 'all') {
+          await replaceRepeatGroupWithPayload(String(rg), payload, userUid)
+          loadList()
+          setModalOpen(false)
+          return
+        }
+        if (isSeriesMember && options?.recurringScope === 'this') {
+          // "이 일정"은 항상 단건 수정(update)으로 처리 (삭제+재생성 금지)
+          await updateReservationThisInSeries(reservationId, payload)
+          loadList()
+          setModalOpen(false)
+          return
+        }
+        if (!isSeriesMember && shouldExpandRepeatPayload(payload)) {
+          await updateReservationThisInstanceReexpand(reservationId, payload, userUid)
+          loadList()
+          setModalOpen(false)
+          return
+        }
         await updateReservation(reservationId, payload)
         loadList()
         setModalOpen(false)
@@ -317,7 +342,7 @@ export default function ReservationsSection() {
         setReservationError(err instanceof Error ? err.message : '예약 수정에 실패했습니다.')
       }
     },
-    [modalInitialEvent?.extendedProps?.reservationId, loadList]
+    [modalInitialEvent?.extendedProps, userUid, loadList]
   )
 
   const handleApproveFromModal = useCallback(
