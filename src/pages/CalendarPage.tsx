@@ -25,8 +25,7 @@ import {
   deleteReservationAllInGroup,
   fetchReservationsForCalendar,
   fetchBookerInfoByUserUid,
-  fetchReservationIdsForStatusUpdate,
-  batchUpdateReservationStatus,
+  rpcChangeReservationStatus,
   STATUS_APPLIED,
   STATUS_APPROVED,
   STATUS_REJECTED,
@@ -517,12 +516,18 @@ export default function CalendarPage() {
     async (reservationId: string, repeatGroupId?: string | null) => {
       if (!user?.id) return
       try {
-        const ids = await fetchReservationIdsForStatusUpdate(reservationId, repeatGroupId)
-        await batchUpdateReservationStatus(ids, STATUS_APPROVED, user.id)
+        const scope =
+          repeatGroupId != null && String(repeatGroupId).trim() !== '' ? 'all' : 'this'
+        const { affectedIds } = await rpcChangeReservationStatus({
+          actorUid: user.id,
+          targetReservationId: reservationId,
+          nextStatus: STATUS_APPROVED,
+          scope,
+        })
         setEvents((prev) =>
           prev.map((e) => {
             const rid = e.extendedProps?.reservationId ?? e.id
-            if (ids.includes(rid))
+            if (affectedIds.includes(rid))
               return { ...e, extendedProps: { ...e.extendedProps, status: STATUS_APPROVED } }
             return e
           })
@@ -544,12 +549,19 @@ export default function CalendarPage() {
     ) => {
       if (!user?.id) return
       try {
-        const ids = await fetchReservationIdsForStatusUpdate(reservationId, repeatGroupId)
-        await batchUpdateReservationStatus(ids, STATUS_REJECTED, user.id, returnComment ?? null)
+        const scope =
+          repeatGroupId != null && String(repeatGroupId).trim() !== '' ? 'all' : 'this'
+        const { affectedIds } = await rpcChangeReservationStatus({
+          actorUid: user.id,
+          targetReservationId: reservationId,
+          nextStatus: STATUS_REJECTED,
+          scope,
+          returnComment: returnComment ?? null,
+        })
         setEvents((prev) =>
           prev.map((e) => {
             const rid = e.extendedProps?.reservationId ?? e.id
-            if (ids.includes(rid))
+            if (affectedIds.includes(rid))
               return {
                 ...e,
                 extendedProps: {

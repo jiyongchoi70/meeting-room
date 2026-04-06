@@ -359,6 +359,9 @@ export default function MainCalendar({
         snapDuration="00:15:00"
         scrollTime="12:00:00"
         scrollTimeReset={false}
+        /** 주/일(timeGrid) 보기에서 현재 시각 가로선 표시 */
+        nowIndicator
+        nowIndicatorSnap
       />
     </div>
   )

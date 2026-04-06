@@ -732,13 +732,7 @@ export default function ReservationModal({
       <div className="reservation-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-header-title-wrap">
-            <h2>
-              {initialEvent
-                ? viewOnly
-                  ? '예약 조회'
-                  : '회의실 예약 수정'
-                : '회의실 예약'}
-            </h2>
+            <h2>{initialEvent && viewOnly ? '예약 조회' : '회의실 예약'}</h2>
             {(() => {
               const status = initialEvent?.extendedProps?.status
               const label = initialEvent ? getReservationStatusLabel(status) : ''

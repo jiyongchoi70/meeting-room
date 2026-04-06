@@ -14,7 +14,7 @@ import {
   fetchRoomOptionsForReservationStatus,
   fetchApprovalStatusOptions,
   batchUpdateReservationStatus,
-  fetchReservationIdsForStatusUpdate,
+  rpcChangeReservationStatus,
   updateReservation,
   replaceRepeatGroupWithPayload,
   updateReservationThisInSeries,
@@ -349,8 +349,14 @@ export default function ReservationsSection() {
     async (reservationId: string, repeatGroupId?: string | null) => {
       if (!userUid) return
       try {
-        const ids = await fetchReservationIdsForStatusUpdate(reservationId, repeatGroupId)
-        await batchUpdateReservationStatus(ids, STATUS_APPROVED, userUid)
+        const scope =
+          repeatGroupId != null && String(repeatGroupId).trim() !== '' ? 'all' : 'this'
+        await rpcChangeReservationStatus({
+          actorUid: userUid,
+          targetReservationId: reservationId,
+          nextStatus: STATUS_APPROVED,
+          scope,
+        })
         loadList()
         setModalOpen(false)
       } catch (err) {
@@ -368,8 +374,15 @@ export default function ReservationsSection() {
     ) => {
       if (!userUid) return
       try {
-        const ids = await fetchReservationIdsForStatusUpdate(reservationId, repeatGroupId)
-        await batchUpdateReservationStatus(ids, STATUS_REJECTED, userUid, returnComment ?? null)
+        const scope =
+          repeatGroupId != null && String(repeatGroupId).trim() !== '' ? 'all' : 'this'
+        await rpcChangeReservationStatus({
+          actorUid: userUid,
+          targetReservationId: reservationId,
+          nextStatus: STATUS_REJECTED,
+          scope,
+          returnComment: returnComment ?? null,
+        })
         loadList()
         setModalOpen(false)
       } catch (err) {

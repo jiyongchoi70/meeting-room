@@ -46,17 +46,23 @@
 ```
 
 ## 3) `rpc_change_reservation_status`
-- 용도: 승인/반려 상태 변경
-- 입력(예시)
-```json
-{
-  "actor_uid": "approver_uid",
-  "scope": "this|all",
-  "target_reservation_id": "uuid",
-  "next_status": 120,
-  "return_comment": null
-}
-```
+- 용도: 한 예약을 앵커로 승인(120) / 반려(130) 처리만. `scope=all`이면 동일 `repeat_group_id` 시리즈 전체(같은 회의실·동일 전이 가능 상태일 때만). 완료(140)는 예약 저장 시 자동 부여만(본 RPC 미사용).
+- Supabase RPC 파라미터(스네이크 케이스)
+
+| 파라미터 | 타입 | 설명 |
+|----------|------|------|
+| `p_actor_uid` | text | 로그인 사용자 UID (Auth `sub`) |
+| `p_target_reservation_id` | uuid | 앵커 예약 ID |
+| `p_next_status` | int | `120` 승인, `130` 반려 |
+| `p_scope` | text | `this` \| `all` (기본 `this`) |
+| `p_return_comment` | text? | 반려(130) 시 사유(선택). 승인 시 `return_comment`는 NULL로 정리 |
+
+- 응답 행 1건: `ok`, `message`, `affected_count`, `affected_ids` (uuid 배열)
+
+## 3b) `rpc_change_reservation_status_many`
+- 용도: 서로 무관한 예약 ID 여러 개를 각각 단건 갱신(예: 예약현황 그리드 다중 선택). **시리즈 자동 확장 없음.**
+- 파라미터: `p_actor_uid`, `p_reservation_ids` (uuid[]), `p_next_status`, `p_return_comment`
+- 응답: 위와 동일 형식 (`affected_ids` = 실제 갱신된 ID 목록)
 
 ## 오류 코드 권장
 - `E_NOT_OWNER`: 본인 예약 아님

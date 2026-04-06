@@ -29,3 +29,11 @@
 ## 상태/권한
 - 본인 예약만 수정/이동 허용(정책 기준)
 - 승인/반려/완료 상태별 허용 동작은 정책에 따른다
+
+### 서버 측 결재 RPC (권장)
+- `supabase/rpc_change_reservation_status.sql` 배포 후 사용
+- **lookup 180 (앱과 동일)**: `110` 신청 → `120` 승인 / `130` 반려. `140` 완료는 저장 시 정책에 따라 자동 설정(수동 완료 RPC 없음).
+- **권한**: `mr_users.user_type = 110`(담당자) 이거나 `mr_approver`에 `(로그인 user_uid, 예약 room_id)` 행이 있을 때만 승인·반려 가능
+- **`rpc_change_reservation_status`**: 한 건을 앵커로 `this`(해당 행만) 또는 `all`(같은 `repeat_group_id` 시리즈 전체) 갱신
+- **`rpc_change_reservation_status_many`**: ID 배열을 각각 단건으로 갱신(그리드에서 서로 다른 예약 다중 선택 시). 시리즈 전체를 한 번에 바꾸려면 앵커 + `all` RPC 사용
+- 상세 계약: `docs/RPC_CONTRACT.md` §3

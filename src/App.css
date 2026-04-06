@@ -345,6 +345,16 @@
   display: none !important;
 }
 
+/* 주/일 뷰: 현재 시각 표시선(now indicator) */
+.main-calendar-wrap .fc .fc-timegrid-now-indicator-line {
+  border-color: #ea580c !important;
+  border-width: 2px 0 0 !important;
+}
+.main-calendar-wrap .fc .fc-timegrid-now-indicator-arrow {
+  border-color: #ea580c !important;
+  border-width: 6px !important;
+}
+
 /* 주/일 뷰 all-day 행: 오늘 셀의 파란 원 제거 (월 뷰만 파란 원 사용) */
 .main-calendar-wrap .fc .fc-timegrid .fc-daygrid-day.fc-day-today .fc-daygrid-day-top {
   display: none !important;

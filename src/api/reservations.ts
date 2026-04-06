@@ -545,46 +545,76 @@ export async function fetchApprovalStatusOptions(): Promise<LookupValue[]> {
   })
 }
 
-/** 일괄 승인(120) 또는 반려(130). 정상 처리 시 approver에 로그인 user_uid 저장. 반려(130) 시 return_comment 저장. */
+export interface RpcChangeReservationStatusResult {
+  affectedCount: number
+  affectedIds: string[]
+}
+
+/** 한 앵커 예약 + this|all 시리즈. 서버에서 담당자/mr_approver 권한 및 상태 전이 검증. */
+export async function rpcChangeReservationStatus(params: {
+  actorUid: string
+  targetReservationId: string
+  nextStatus: number
+  scope: 'this' | 'all'
+  returnComment?: string | null
+}): Promise<RpcChangeReservationStatusResult> {
+  const { data, error } = await supabase.rpc('rpc_change_reservation_status', {
+    p_actor_uid: params.actorUid,
+    p_target_reservation_id: params.targetReservationId,
+    p_next_status: params.nextStatus,
+    p_scope: params.scope,
+    p_return_comment:
+      params.nextStatus === STATUS_REJECTED ? (params.returnComment ?? null) : null,
+  })
+  if (error) throw new Error(error.message || '상태 변경 실패')
+  const row = (data as { affected_count: number; affected_ids: string[] | null }[] | null)?.[0]
+  return {
+    affectedCount: row?.affected_count ?? 0,
+    affectedIds: row?.affected_ids ?? [],
+  }
+}
+
+/** 선택 ID 각각 단건 갱신(그리드 일괄). 서버에서 권한·전이 검증. */
+export async function rpcChangeReservationStatusMany(params: {
+  actorUid: string
+  reservationIds: string[]
+  nextStatus: number
+  returnComment?: string | null
+}): Promise<RpcChangeReservationStatusResult> {
+  if (params.reservationIds.length === 0) {
+    return { affectedCount: 0, affectedIds: [] }
+  }
+  const { data, error } = await supabase.rpc('rpc_change_reservation_status_many', {
+    p_actor_uid: params.actorUid,
+    p_reservation_ids: params.reservationIds,
+    p_next_status: params.nextStatus,
+    p_return_comment:
+      params.nextStatus === STATUS_REJECTED ? (params.returnComment ?? null) : null,
+  })
+  if (error) throw new Error(error.message || '상태 변경 실패')
+  const row = (data as { affected_count: number; affected_ids: string[] | null }[] | null)?.[0]
+  return {
+    affectedCount: row?.affected_count ?? 0,
+    affectedIds: row?.affected_ids ?? [],
+  }
+}
+
+/** 일괄 승인(120) / 반려(130). 내부적으로 `rpc_change_reservation_status_many` 호출. */
 export async function batchUpdateReservationStatus(
   reservationIds: string[],
   status: number,
   approverUserUid: string,
   returnComment?: string | null
 ): Promise<void> {
-  if (reservationIds.length === 0) return
-  const payload: { status: number; update_at: string; approver: string; return_comment?: string | null } = {
-    status,
-    update_at: new Date().toISOString(),
-    approver: approverUserUid,
-  }
-  if (status === STATUS_REJECTED && returnComment !== undefined) {
-    payload.return_comment = returnComment ?? null
-  }
-  const { error } = await supabase
-    .from('mr_reservations')
-    .update(payload)
-    .in('reservation_id', reservationIds)
-  if (error) throw new Error(error.message || '상태 변경 실패')
+  await rpcChangeReservationStatusMany({
+    actorUid: approverUserUid,
+    reservationIds,
+    nextStatus: status,
+    returnComment: status === STATUS_REJECTED ? returnComment : null,
+  })
 }
 
-/** 승인/반려 시 갱신할 reservation_id 목록. repeat_group_id 있으면 동일 그룹 전체, 없으면 해당 1건. */
-export async function fetchReservationIdsForStatusUpdate(
-  reservationId: string,
-  repeatGroupId?: string | null
-): Promise<string[]> {
-  if (repeatGroupId && String(repeatGroupId).trim() !== '') {
-    const { data, error } = await supabase
-      .from('mr_reservations')
-      .select('reservation_id')
-      .eq('repeat_group_id', repeatGroupId)
-    if (error) throw new Error(error.message || '예약 조회 실패')
-    return (data ?? []).map((r: { reservation_id: string }) => r.reservation_id)
-  }
-  return [reservationId]
-}
-
-export { STATUS_APPLIED, STATUS_APPROVED, STATUS_REJECTED }
+export { STATUS_APPLIED, STATUS_APPROVED, STATUS_REJECTED, STATUS_COMPLETED }
 
 /** mr_users.user_type: 110 = 담당자(관리자). 담당자/승인자면 status 140, 그 외는 회의실 confirm_yn 기준 */
 const USER_TYPE_MANAGER = 110
